@@ -12,9 +12,11 @@
                  class="head-handle-button"
                  @click.native="handleTypeClick('edit')"
                  type="primary">编辑</el-button>
-      <el-dropdown trigger="click"
+      <el-dropdown v-if="moreTypes.length > 0"
+                   trigger="click"
                    @command="handleTypeClick">
-        <flexbox class="t-more">
+        <flexbox class="t-more"
+                 v-if="moreTypes.length > 0">
           <div>更多</div>
           <i class="el-icon-arrow-down el-icon--right"
              style="color:#ccc;"></i>
@@ -22,7 +24,6 @@
         <el-dropdown-menu slot="dropdown">
           <el-dropdown-item v-for="(item, index) in moreTypes"
                             :key="index"
-                            v-if="whetherTypeShowByPermision(item.type)"
                             :command="item.type">{{item.name}}</el-dropdown-item>
         </el-dropdown-menu>
       </el-dropdown>
@@ -49,6 +50,10 @@
                   :selectionList="[detail]"
                   @handle="handleCallBack"
                   :dialogVisible.sync="allocDialogShow"></alloc-handle>
+    <deal-status-handle :crmType="crmType"
+                        :selectionList="[detail]"
+                        @handle="handleCallBack"
+                        :visible.sync="dealStatusShow"></deal-status-handle>
   </div>
 </template>
 <script type="text/javascript">
@@ -70,15 +75,17 @@ import { crmReceivablesDelete } from '@/api/customermanagement/money'
 import { crmProductStatus } from '@/api/customermanagement/product'
 import TransferHandle from './selectionHandle/TransferHandle' // 转移
 import AllocHandle from './selectionHandle/AllocHandle' // 公海分配操作
+import DealStatusHandle from './selectionHandle/DealStatusHandle' // 客户状态修改操作
 
 export default {
   name: 'c-r-m-detail-head',
   components: {
     TransferHandle,
-    AllocHandle
+    AllocHandle,
+    DealStatusHandle
   },
   computed: {
-    ...mapGetters(['crm']),
+    ...mapGetters(['crm', 'CRMConfig']),
     crmIcon() {
       if (this.crmType === 'customer') {
         return require('@/assets/img/customer_detail.png')
@@ -105,7 +112,11 @@ export default {
     },
     // 展示转移
     showTransfer() {
-      if (this.crmType === 'receivables' || this.crmType === 'product') {
+      if (
+        this.crmType === 'receivables' ||
+        this.crmType === 'product' ||
+        this.isSeas
+      ) {
         return false
       }
       return this.crm[this.crmType].transfer
@@ -114,11 +125,17 @@ export default {
       return this.isSeas ? false : this.crm[this.crmType].update
     }
   },
+  watch: {
+    isSeas() {
+      this.moreTypes = this.getSelectionHandleItemsInfo()
+    }
+  },
   data() {
     return {
       moreTypes: [], // 更多操作
       transferDialogShow: false, // 转移操作
-      allocDialogShow: false // 公海分配操作提示框
+      allocDialogShow: false, // 公海分配操作提示框
+      dealStatusShow: false // 成交状态修改框
     }
   },
   props: {
@@ -205,6 +222,9 @@ export default {
       } else if (type == 'alloc') {
         // 公海分配操作
         this.allocDialogShow = true
+      } else if (type == 'deal_status') {
+        // 客户成交状态操作
+        this.dealStatusShow = true
       }
     },
     confirmHandle(type) {
@@ -360,6 +380,11 @@ export default {
           name: '下架',
           type: 'disable',
           icon: require('@/assets/img/selection_disable.png')
+        },
+        deal_status: {
+          name: '更改成交状态',
+          type: 'deal_status',
+          icon: require('@/assets/img/selection_deal_status.png')
         }
       }
       if (this.crmType == 'leads') {
@@ -377,6 +402,7 @@ export default {
         } else {
           return this.forSelectionHandleItems(handleInfos, [
             'put_seas',
+            'deal_status',
             'lock',
             'unlock',
             'delete'
@@ -397,12 +423,15 @@ export default {
     forSelectionHandleItems(handleInfos, array) {
       var tempsHandles = []
       for (let index = 0; index < array.length; index++) {
-        tempsHandles.push(handleInfos[array[index]])
+        let type = array[index]
+        if (this.whetherTypeShowByPermision(type)) {
+          tempsHandles.push(handleInfos[type])
+        }
       }
       return tempsHandles
     },
     // 判断是否展示
-    whetherTypeShowByPermision: function(type) {
+    whetherTypeShowByPermision(type) {
       if (type == 'transfer') {
         return this.crm[this.crmType].transfer
       } else if (type == 'transform') {
@@ -416,7 +445,7 @@ export default {
         return this.crm[this.crmType].putinpool
       } else if (type == 'lock' || type == 'unlock') {
         // 锁定解锁(客户)
-        return this.crm[this.crmType].lock
+        return this.crm[this.crmType].lock && this.CRMConfig.config == 1
       } else if (type == 'add_user' || type == 'delete_user') {
         // 添加 移除团队成员
         return this.crm[this.crmType].teamsave
@@ -429,6 +458,9 @@ export default {
       } else if (type == 'start' || type == 'disable') {
         // 上架 下架(产品)
         return this.crm[this.crmType].status
+      } else if (type == 'deal_status') {
+        // 客户状态修改
+        return this.crm[this.crmType].deal_status
       }
 
       return true

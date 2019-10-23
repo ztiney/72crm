@@ -60,3 +60,58 @@ export function crmContactsTransfer(data) {
     data: data
   })
 }
+
+/**
+ * 联系人导出
+ * @param {*} data
+ *
+ */
+export function crmContactsExcelExport(data) {
+  return request({
+    url: 'crm/contacts/excelExport',
+    method: 'post',
+    data: data,
+    responseType: 'blob',
+    timeout: 600000
+  })
+}
+
+/**
+ * 联系人导入
+ * @param {*} data
+ *
+ */
+export function crmContactsExcelImport(data) {
+  var param = new FormData()
+  Object.keys(data).forEach(key => {
+    param.append(key, data[key])
+  })
+  return request({
+    url: 'crm/contacts/excelImport',
+    method: 'post',
+    data: param,
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    },
+    timeout: 600000
+  })
+}
+
+/**
+ * 联系人导入模板下载
+ * @param {*} data
+ *
+ */
+export const crmContactsExcelDownloadURL = 'crm/contacts/excelDownload'
+
+/**
+ * 关联和取消关联商机/联系人
+ * @param {*} data 
+ */
+export function crmContactsRelationAPI(data) {
+  return request({
+    url: 'crm/contacts/relation',
+    method: 'post',
+    data: data
+  })
+}

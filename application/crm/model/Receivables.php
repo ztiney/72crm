@@ -39,9 +39,13 @@ class Receivables extends Common
 		$search = $request['search'];
     	$user_id = $request['user_id'];
     	$scene_id = (int)$request['scene_id'];
+		$order_field = $request['order_field'];
+    	$order_type = $request['order_type'];    	
 		unset($request['scene_id']);
 		unset($request['search']);
-		unset($request['user_id']);	    	
+		unset($request['user_id']);	
+		unset($request['order_field']);	
+		unset($request['order_type']);		    	
 
         $request = $this->fmtRequest( $request );
         $requestMap = $request['map'] ? : [];
@@ -80,16 +84,23 @@ class Receivables extends Common
 	    $auth_user_ids = array_merge(array_unique(array_filter($auth_user_ids))) ? : ['-1'];
 	    //负责人、相关团队
 	    $authMap['receivables.owner_user_id'] = ['in',$auth_user_ids];
-
+		//列表展示字段
+		$indexField = $fieldModel->getIndexField('crm_receivables', $user_id, 1) ? : array('number');    
 		//人员类型
 		$userField = $fieldModel->getFieldByFormType('crm_receivables', 'user');
 		$structureField = $fieldModel->getFieldByFormType('crm_receivables', 'structure');  //部门类型	    			
 
 		if ($request['order_type'] && $request['order_field']) {
-			$order = trim($request['order_field']).' '.trim($request['order_type']);
+			$order = $fieldModel->getOrderByFormtype('crm_receivables','receivables',$order_field,$order_type);
 		} else {
 			$order = 'receivables.update_time desc';
 		}
+		//排序
+		if ($order_type && $order_field) {
+			$order = 'convert(receivables.'.trim($order_field).' using gbk) '.trim($order_type);
+		} else {
+			$order = 'receivables.update_time desc';
+		}		
 
 		$readAuthIds = $userModel->getUserByPer('crm', 'receivables', 'read');
         $updateAuthIds = $userModel->getUserByPer('crm', 'receivables', 'update');
@@ -100,9 +111,9 @@ class Receivables extends Common
 				->join('__CRM_CONTRACT__ contract','receivables.contract_id = contract.contract_id','LEFT')		
 				->where($map)
 				->where($authMap)
-				->page($request['page'], $request['limit'])
-				->field('receivables.*,customer.name as customer_name,contract.name as contract_name,contract.num as contract_num,contract.money as contract_money')
-				->order($order)
+				->limit(($request['page']-1)*$request['limit'], $request['limit'])
+				->field(implode(',',$indexField).',customer.name as customer_name,contract.name as contract_name,contract.num as contract_num,contract.money as contract_money')
+				->orderRaw($order)
 				->select();	
         $dataCount = db('crm_receivables')
         			->alias('receivables')
@@ -115,7 +126,7 @@ class Receivables extends Common
         	$list[$k]['customer_id_info']['customer_id'] = $v['customer_id'] ? : '';
         	$list[$k]['customer_id_info']['name'] = $v['customer_name'] ? : '';	
         	$list[$k]['contract_id_info']['contract_id'] = $v['contract_id'] ? : '';
-        	$list[$k]['contract_id_info']['name'] = $v['contract_name'] ? : '';
+        	$list[$k]['contract_id_info']['name'] = $v['contract_num'] ? : '';
         	$list[$k]['contract_id_info']['money'] = $v['contract_money'] ? : '0.00';
         	$list[$k]['contract_money'] = $v['contract_money'] ? : '0.00';  
 			foreach ($userField as $key => $val) {
@@ -125,7 +136,9 @@ class Receivables extends Common
         		$list[$k][$val.'_info'] = isset($v[$val]) ? $structureModel->getDataByStr($v[$val]) : [];
         	}
         	$list[$k]['check_status_info'] = $this->statusArr[$v['check_status']];
-
+        	//期数
+        	$plan_num = db('crm_receivables_plan')->where(['plan_id' => $v['plan_id']])->value('num');
+        	$list[$k]['plan_id_info'] = $plan_num ? : '';
 			//权限
 			$permission = [];
 			$is_read = 0;
@@ -185,28 +198,27 @@ class Receivables extends Common
 
 	/**
 	 * 根据对象ID 获取该年各个月回款情况
-	 * @return [year] [哪一年]
-	 * @return [owner_user_id] [哪个员工]
-	 * @return [start_time] [开始时间]
-	 * @return [end_time] [结束时间]
+	 * @param [year] [哪一年]
+	 * @param [owner_user_id] [哪个员工]
+	 * @param [start_time] [开始时间]
+	 * @param [end_time] [结束时间]
 	 */
 	public function getDataByUserId($param)
 	{	
-		if($param['obj_type']){
-			if($param['obj_type']==1){ //部门
-				$structureList = Db::name('AdminUser')->field('id')->where('structure_id = '.$param['obj_id'])->select();
-				$ary =  array_map('array_shift',$structureList);
-				$str = implode(',',$ary);
+		if ($param['obj_type']) {
+			if ($param['obj_type'] == 1) { //部门
+				$userModel = new \app\admin\model\User();
+			    $str = $userModel->getSubUserByStr($param['obj_id'], 1) ? : ['-1'];
 				$map['owner_user_id'] = array('in',$str); 
-			}else{ //员工
-				$map['owner_user_id'] = array('=',$param['obj_id']); 
+			} else { //员工
+				$map['owner_user_id'] = $param['obj_id']; 
 			}
 		}
 		//审核状态
 		$start = date('Y-m-d',$param['start_time']);
 		$stop = date('Y-m-d',$param['end_time']);
 		$map['check_status'] = 2;
-		$data = $this->where($map)->where(' return_time >"'.$start.'" and return_time < "'.$stop.'"' )->sum('money');
+		$data = $this->where($map)->where(['return_time' => ['between',[$start,$stop]]])->sum('money');
 		return $data;
 	}
 
@@ -219,7 +231,7 @@ class Receivables extends Common
 	public function updateDataById($param, $receivables_id = '')
 	{
 		$userModel = new \app\admin\model\User();
-		$dataInfo = $this->getDataById($receivables_id);
+		$dataInfo = db('crm_receivables')->where(['receivables_id' => $receivables_id])->find();
 		if (!$dataInfo) {
 			$this->error = '数据不存在或已删除';
 			return false;
@@ -248,13 +260,13 @@ class Receivables extends Common
 			$param[$v] = arrayToString($param[$v]);
 		}
 
-		if ($this->allowField(true)->save($param, ['receivables_id' => $receivables_id])) {
+		if ($this->update($param, ['receivables_id' => $receivables_id], true)) {
 			//修改记录
 			updateActionLog($param['user_id'], 'crm_receivables', $receivables_id, $dataInfo, $param);
 			//站内信
-            $createUserInfo = $userModel->getDataById($param['user_id']);
+            $createUserInfo = $userModel->getUserById($param['user_id']);
             $send_user_id = stringToArray($param['check_user_id']);
-            $sendContent = $createUserInfo['realname'].'提交了回款【'.$dataInfo['number'].'】,需要您审批';
+            $sendContent = $createUserInfo['realname'].'提交了回款《'.$dataInfo['number'].'》,需要您审批';
             if ($send_user_id) {
             	sendMessage($send_user_id, $sendContent, $receivables_id, 1);
             }			
@@ -300,12 +312,15 @@ class Receivables extends Common
 		$userModel = new \app\admin\model\User();
 		$structureModel = new \app\admin\model\Structure();
     	$fieldModel = new \app\admin\model\Field();
-    	$contractModel = new \app\crm\model\Contract();  // model('Contract');
+    	$contractModel = new \app\crm\model\Contract();
+		$adminModel = new \app\admin\model\Admin(); 
+        $perUserIds = $userModel->getUserByPer('bi', 'receivables', 'read'); //权限范围内userIds
+        $whereData = $adminModel->getWhere($param, '', $perUserIds); //统计条件
+        $userIds = $whereData['userIds'];     	
 
 		if (!$request['year']) {
 			$request['year'] = date('Y');
 		}
-		
 		if ($request['month']) {
 			$start = strtotime($request['year'].'-'.$request['month'].'-01');
 			if ($request['month'] == '12') {
@@ -321,24 +336,13 @@ class Receivables extends Common
 			$end = strtotime($next_year.'-01-01');
 		}
 		
-		if ($request['user_id']) {
-			$map_user_ids[] = $request['user_id'];
-		} else if($request['structure_id']){
-			$map_user_ids = $userModel->getSubUserByStr($request['structure_id']);
-		}
-		
-		$perUserIds = $userModel->getUserByPer(); //权限范围内userIds
-		$userIds = $map_user_ids ? array_intersect($map_user_ids, $perUserIds) : $perUserIds; //数组交集
-		$useridstr = implode(',',$userIds);
-		
-		$map['owner_user_id'] = ['in',$useridstr];
+		$map['owner_user_id'] = ['in',$userIds];
 		//$map['rec.check_status'] = 3;
 		$map['create_time'] = array('between',array($start,$end));
 		//合同有多个回款
-		
-		//根据时间 查合同
+		//根据时间查合同
 		if( $request['type'] == '1'){ 
-			$map_type['contract.owner_user_id'] = ['in',$useridstr];
+			$map_type['contract.owner_user_id'] = ['in',$userIds];
 			$map_type['contract.create_time'] = array('between',array($start,$end));
 			
 			$userField = $fieldModel->getFieldByFormType('crm_contract', 'user');
@@ -366,15 +370,14 @@ class Receivables extends Common
 		        	$list[$k]['customer_id_info']['name'] = $v['customer_name'];
 					$list[$k]['contacts_id_info']['customer_id'] = $v['contacts_id'];
 		        	$list[$k]['contacts_id_info']['name'] = $v['contacts_name'];        	
-		        	$list[$k]['check_status_info'] = $this->statusArr[$v['check_status']]; 
-		        	           	  		
+		        	$list[$k]['check_status_info'] = $this->statusArr[$v['check_status']];          	  		
 		        }  	
 				return $list;
 			} else {
 				return array();
 			}
 		} else { //回款
-			$map_rec['receivables.owner_user_id'] = ['in',$useridstr];
+			$map_rec['receivables.owner_user_id'] = ['in',$userIds];
 			//$map['rec.check_status'] = 3;
 			$map_rec['receivables.create_time'] = array('between',array($start,$end));
 			$map_rec['receivables.check_status'] = 2; 
@@ -411,7 +414,7 @@ class Receivables extends Common
 	}
 	
 	/**
-     * [回款统计] //柱状图
+     * [回款统计] 柱状图
      * @author Michael_xu
 	 * @param request [查询条件]
 	 * @param 
@@ -420,8 +423,7 @@ class Receivables extends Common
 	public function getStatistics($request)
 	{
 		$userModel = new \app\admin\model\User();
-		
-		$useridstr = implode(',',$request['userIds']);
+		$userIds = $request['userIds'];
 		$charMonthArr = []; //按照月份
 		$charQuarterArr = []; //按照季度
 		$quarter = 0;
@@ -442,11 +444,11 @@ class Receivables extends Common
 			}
             $where_receivables = [];
 			$where_contract = [];
-    		$where_contract['owner_user_id'] = ['in',$useridstr];
-			$where_receivables['owner_user_id'] = ['in',$useridstr];
+    		$where_contract['owner_user_id'] = ['in',$userIds];
+			$where_receivables['owner_user_id'] = ['in',$userIds];
     		$where_contract['create_time'] = array('between',array($start_time,$end_time));
 			$where_receivables['return_time'] = array('between',array( date('Y-m-d',$start_time),date('Y-m-d',$end_time)));
-			$where_receivables['owner_user_id'] = ['in',$useridstr];
+			$where_receivables['owner_user_id'] = ['in',$userIds];
     		$where_receivables['check_status'] = $where_contract['check_status'] = 2; //审核通过
     		$contractMoney = db('crm_contract')->where($where_contract)->sum('money'); 
 			$receivablesMoney = db('crm_receivables')->where($where_receivables)->sum('money');
@@ -482,9 +484,9 @@ class Receivables extends Common
 	{
 		$doneMoney = $this->where(['contract_id' => $contract_id,'check_status' => 2])->sum('money');
 		$contractMoney = db('crm_contract')->where(['contract_id' => $contract_id])->value('money');
-		$subMoney = $contractMoney-$doneMoney;
+		$unMoney = $contractMoney-$doneMoney;
 		$data['doneMoney'] = $doneMoney ? : '0.00';
-		$data['subMoney'] = $subMoney ? : '0.00';
+		$data['unMoney'] = $unMoney ? : '0.00';
 		$data['contractMoney'] = $contractMoney ? : '0.00';
 		return $data;
 	}

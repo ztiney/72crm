@@ -8,9 +8,10 @@ Vue.use(Router)
 
 import workbenchRouter from './modules/workbench'
 import customerRouter from './modules/customer'
-import managerRouter from './modules/manager'
+import projectRouter from './modules/project/index'
+import { managerRouter } from './modules/manager'
 import personRouter from './modules/person'
-import businessRouter from './modules/business'
+import { biRouter } from './modules/business'
 
 /**
 * hidden: true                   if `hidden:true` will not show in the sidebar(default is false)
@@ -34,16 +35,10 @@ export const constantRouterMap = [{
     component: () => import('@/views/404'),
     hidden: true
   },
-  {
-    path: '/401',
-    component: () => import('@/views/401'),
-    hidden: true
-  },
-  workbenchRouter,
   personRouter,
   {
-    path: '/',
-    redirect: '/workbench/index',
+    path: '*',
+    redirect: '/404',
     hidden: true
   }
 ]
@@ -57,12 +52,9 @@ export default new Router({
 })
 
 export const asyncRouterMap = [
+  workbenchRouter,
   customerRouter,
-  managerRouter,
-  businessRouter,
-  {
-    path: '*',
-    redirect: '/404',
-    hidden: true
-  }
+  biRouter,
+  projectRouter,
+  managerRouter
 ]

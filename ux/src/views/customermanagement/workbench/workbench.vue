@@ -18,25 +18,36 @@
                        type="text"
                        class="user-switch">切换</el-button>
           </members-dep>
-
+          <time-type-select @change="timeTypeChange"></time-type-select>
         </flexbox>
       </div>
+      <el-button class="check"
+                 type="primary"
+                 icon="wukong wukong-check"
+                 @click="showDuplicateCheck = true">数据查重</el-button>
     </flexbox>
     <customer-dash :data="dashData"></customer-dash>
+    <duplicate-check v-if="showDuplicateCheck"
+                     @hiden-view="showDuplicateCheck=false"></duplicate-check>
   </div>
 </template>
 
 <script>
+import timeTypeSelect from '@/components/timeTypeSelect'
 import CustomerDash from './components/CustomerDash'
+import DuplicateCheck from './components/duplicateCheck'
 import membersDep from '@/components/selectEmployee/membersDep'
 import { mapGetters } from 'vuex'
+import { usersList } from '@/api/common'
 
 export default {
   /** 客户管理下的工作台 */
   name: 'customerWorkbench',
   components: {
     CustomerDash,
-    membersDep // 员工部门
+    DuplicateCheck,
+    membersDep, // 员工部门
+    timeTypeSelect
   },
   filters: {},
   data() {
@@ -45,8 +56,12 @@ export default {
       users: [],
       strucs: [],
       // 条件
-      dashData: { users: [], strucs: [] },
-      filtersInfo: { realname: '', thumb_img: '' }
+      dashData: { users: [], strucs: [], timeTypeValue: {} },
+      filtersInfo: { realname: '', thumb_img: '' },
+      // 时间值
+      timeTypeValue: { label: '本季度', value: 'quarter' },
+      // 展示查重
+      showDuplicateCheck: false
     }
   },
   computed: {
@@ -54,29 +69,62 @@ export default {
   },
   mounted() {
     this.users.push(this.userInfo)
-    this.dashData = { users: this.users, strucs: [] }
-    this.filtersInfo = this.userInfo
+    this.dashData = { users: [], strucs: [], timeTypeValue: this.timeTypeValue }
+    this.filtersInfo = {
+      realname: '本人及下属',
+      thumb_img: require('@/assets/img/crm_multiuser.png')
+    }
+    this.getUserList()
   },
   methods: {
+    getUserList() {
+      usersList({ by: 'sub' })
+        .then(res => {
+          this.users = res.data
+        })
+        .catch(() => {})
+    },
+
+    // 类型选择
+    timeTypeChange(data) {
+      this.timeTypeValue = data
+      this.dashData = {
+        users: this.users,
+        strucs: this.strucs,
+        timeTypeValue: this.timeTypeValue
+      }
+    },
     // 更改筛选条件
     popoverSubmit(users, strucs) {
       this.users = users
       this.strucs = strucs
       if (this.users.length === 1 && this.strucs.length === 0) {
-        this.dashData = { users: this.users, strucs: this.strucs }
+        this.dashData = {
+          users: this.users,
+          strucs: this.strucs,
+          timeTypeValue: this.timeTypeValue
+        }
         this.filtersInfo = {
           realname: this.users[0].realname,
           thumb_img: this.users[0].thumb_img
         }
       } else if (this.users.length === 0 && this.strucs.length === 0) {
         this.users = [this.userInfo]
-        this.dashData = { users: this.users, strucs: this.strucs }
+        this.dashData = {
+          users: this.users,
+          strucs: this.strucs,
+          timeTypeValue: this.timeTypeValue
+        }
         this.filtersInfo = {
           realname: this.userInfo.realname,
           thumb_img: this.userInfo.thumb_img
         }
       } else {
-        this.dashData = { users: this.users, strucs: this.strucs }
+        this.dashData = {
+          users: this.users,
+          strucs: this.strucs,
+          timeTypeValue: this.timeTypeValue
+        }
         var name = ''
         if (this.users.length > 0) {
           name = this.users.length + '个员工'
@@ -100,6 +148,7 @@ export default {
 <style lang="scss" scoped>
 .user-container {
   margin-bottom: 20px;
+  position: relative;
   .user-img {
     display: block !important;
     width: 40px;
@@ -121,12 +170,27 @@ export default {
     }
     .user-switch {
       font-size: 12px;
+      margin-right: 15px;
     }
   }
   .user-more {
     margin-top: 5px;
     font-size: 12px;
     color: #999999;
+  }
+
+  .check {
+    position: absolute;
+    top: 3px;
+    right: 0;
+    color: white;
+    font-size: 13px;
+    border-radius: 3px;
+
+    /deep/ .wukong-check {
+      margin-right: 4px;
+      font-size: 17px;
+    }
   }
 }
 </style>

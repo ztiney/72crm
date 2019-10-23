@@ -3,7 +3,7 @@
        v-loading="loading">
     <el-button type="primary"
                class="new-btn"
-               v-if="newStatus"
+               v-if="permissionSave"
                @click="newBtn">新建公告</el-button>
     <el-tabs v-model="activeName">
       <el-tab-pane label="公告"
@@ -38,10 +38,10 @@
               </div>
               <div class="title"
                    @click="rowFun(item)">{{item.title}}</div>
-              <pre class="item-content"
-                   v-if="item.preShow">{{item.content}}</pre>
-              <pre class="item-content"
-                   v-else>{{item.contentSub}}</pre>
+              <div class="item-content"
+                   v-if="item.preShow">{{item.content}}</div>
+              <div class="item-content"
+                   v-else>{{item.contentSub}}</div>
               <div v-if="item.contentSub.length < item.content.length"
                    class="load-more">
                 <span v-if="!item.loadMore"
@@ -76,6 +76,7 @@
 <script>
 import VDetails from './details'
 import newDialog from './newDialog'
+import { mapGetters } from 'vuex'
 // API
 import { noticeList, noticeAdd } from '@/api/oamanagement/notice'
 
@@ -106,8 +107,7 @@ export default {
       loadText: '加载更多',
       loadMoreLoading: true,
       // 判断是否还有数据
-      isPost: true,
-      newStatus: false
+      isPost: true
     }
   },
   watch: {
@@ -115,22 +115,26 @@ export default {
       this.$router.go(0)
     }
   },
+  computed: {
+    ...mapGetters(['oa']),
+    permissionSave() {
+      return this.oa && this.oa.announcement && this.oa.announcement.save
+    }
+  },
   mounted() {
     this.noticeDataFun(1, this.pageNum)
     // 分批次加载
-    let _this = this
-    document.getElementsByClassName('content')[0].onscroll = function() {
-      let doms = document.getElementsByClassName('content')[0]
-      var scrollTop = doms.scrollTop
-      var windowHeight = doms.clientHeight
-      var scrollHeight = doms.scrollHeight //滚动条到底部的条件
-      if (scrollTop + windowHeight == scrollHeight) {
-        _this.loadMoreLoading = true
-        if (_this.isPost) {
-          _this.pageNum++
-          _this.noticeDataFun(_this.optionsValue, _this.pageNum)
+    document.getElementsByClassName('content')[0].onscroll = () => {
+      let dom = document.getElementsByClassName('content')[0]
+      let scrollOff = dom.scrollTop + dom.clientHeight - dom.scrollHeight
+      //滚动条到底部的条件
+      if (Math.abs(scrollOff) < 10 && this.loadMoreLoading == true) {
+        if (!this.isPost) {
+          this.isPost = true
+          this.pageNum++
+          this.noticeDataFun(this.optionsValue, this.pageNum)
         } else {
-          _this.loadMoreLoading = false
+          this.loadMoreLoading = false
         }
       }
     }
@@ -144,26 +148,24 @@ export default {
         limit: 15
       })
         .then(res => {
-          res.data.is_create == 1
-            ? (this.newStatus = true)
-            : (this.newStatus = false)
           for (let item of res.data.list) {
             item.contentSub = item.content.substring(0, 150)
           }
           this.listData = this.listData.concat(res.data.list)
           if (res.data.list.length == 0 || res.data.list.length != 15) {
             this.loadText = '没有更多了'
-            this.isPost = false
+            this.loadMoreLoading = false
           } else {
             this.loadText = '加载更多'
-            this.isPost = true
+            this.loadMoreLoading = true
           }
           this.loading = false
-          this.loadMoreLoading = false
+          this.isPost = false
         })
         .catch(err => {
+          this.loadText = ''
           this.loading = false
-          this.loadMoreLoading = false
+          this.isPost = false
         })
     },
     // 点击显示详情
@@ -274,6 +276,11 @@ export default {
           line-height: 18px;
           white-space: pre-wrap;
           word-wrap: break-word;
+          background-color: #f0f7ff;
+          padding: 15px;
+          border-radius: 3px;
+          color: #333;
+          letter-spacing: 0.5px;
         }
         .load-more {
           text-align: left;

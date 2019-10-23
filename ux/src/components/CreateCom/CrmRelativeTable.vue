@@ -140,6 +140,7 @@ export default {
       currentPage: 1, // 当前页数
       totalPage: 1, //总页数
 
+      otherItems: [],
       selectedItem: [], // 勾选的数据 点击确定 传递给父组件
       /** 格式化规则 */
       formatterRules: {}
@@ -183,6 +184,14 @@ export default {
   },
   mounted() {},
   methods: {
+    /**
+     * 刷新列表
+     */
+    refreshList() {
+      this.currentPage = 1;
+      this.getList()
+    },
+
     getSceneList() {
       this.loading = true
       crmSceneIndex({
@@ -289,6 +298,8 @@ export default {
         return [
           { name: '姓名', field: 'name', form_type: 'contacts' },
           { name: '手机', field: 'mobile', form_type: 'mobile' },
+          { name: '电话', field: 'telephone', form_type: 'text' },
+          { name: '是否关键决策人', field: 'decision', form_type: 'text' },
           { name: '职务', field: 'post', form_type: 'text' }
         ]
       } else if (this.crmType === 'business') {
@@ -384,16 +395,29 @@ export default {
     },
     // 标记选择数据
     checkItemsWithSelectedData() {
-      let selectedArray = this.selectedData[this.crmType]
+      let selectedArray = this.selectedData[this.crmType].map(item => {
+        item.has = false
+        return item
+      })
+
       let selectedRows = []
+      this.otherItems = []
+
       this.list.forEach((item, index) => {
         selectedArray.forEach((selectedItem, selectedIndex) => {
           if (
             item[this.crmType + '_id'] == selectedItem[this.crmType + '_id']
           ) {
+            selectedItem.has = true
             selectedRows.push(item)
           }
         })
+      })
+
+      selectedArray.forEach((selectedItem, selectedIndex) => {
+        if (!selectedItem.has) {
+          this.otherItems.push(selectedItem)
+        }
       })
 
       this.$nextTick(() => {
@@ -441,7 +465,7 @@ export default {
           this.selectedItem = val.length === 1 ? val : [val[val.length - 1]]
         }
       } else {
-        this.selectedItem = val
+        this.selectedItem = this.otherItems.concat(val)
       }
       this.$emit('changeCheckout', {
         data: this.selectedItem,

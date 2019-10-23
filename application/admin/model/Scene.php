@@ -109,7 +109,7 @@ class Scene extends Common
 					$setting = $newFieldList[$key]['setting'];
 	    			$data[$key]['setting'] = $setting;
 	    			if ($val['form_type'] == 'user' && $val['value']) {
-	    				$userInfo = $userModel->getDataById($val['value']);
+	    				$userInfo = $userModel->getUserById($val['value']);
 	    				$data[$key]['setting']['realname'] = $userInfo['realname'];
 	    				$data[$key]['setting']['id'] = $userInfo['id'];
 	    			} 
@@ -130,11 +130,11 @@ class Scene extends Common
 	 * @param  array   $param  [description]
 	 * @author Michael_xu
 	 */ 
-	public function getDataById($id = '', $user_id, $types = '')
+	public function getDataById($id = '', $user_id = '', $types = '')
 	{
 		$where = [];
 		$where['scene_id'] = $id;
-		$where['user_id'] = [['=',$user_id],['=',0],'or'];
+		// $where['user_id'] = [['=',$user_id],['=',0],'or'];
 		$data = db('admin_scene')->where($where)->find();
 		if (!$types) {
 			$types = $data['types'] ? : '';
@@ -147,11 +147,7 @@ class Scene extends Common
 			if (is_array($data)) {
 				foreach ($data as $k=>$v) {
 					if ($v['form_type'] == 'business_type') {
-						$v['value'] = $v['type_id'];
-						if ($v['status_id']) {
-							$v['value'] = $v['status_id'];
-							$data['status_id'] = $v;
-						}
+						$data[$k]['value'] = $v['type_id'];
 					}
 				}	
 			}
@@ -190,6 +186,9 @@ class Scene extends Common
 		// $scene_data = $this->dataChangeString($param);
 		//处理data数据
 		$res = $this->allowField(true)->save($param, ['scene_id' => $id]);
+		if ($param['is_default'] == 1) {
+			$this->defaultDataById($param,$param['id']);
+		}
 		if ($res) {
 			return true;
 		} else {
@@ -236,7 +235,6 @@ class Scene extends Common
 	 */
 	public function dataChangeString($param = [])
 	{
-		die();
 		$scene_data = '[';
 		$field_arr = [];
 		$i = 0;
@@ -409,6 +407,9 @@ class Scene extends Common
     		case 'all' : $auth_user_ids = ''; break; //全部
     		case 'is_transform' : $map['is_transform'] = ['condition' => 'eq','value' => 1,'form_type' => 'text','name' => '']; break; //已转化线索
     		// default : $auth_user_ids = $userModel->getUserByPer('crm', $types, 'index'); break;
+    		case 'pool' : 
+    				$customerModel = new \app\crm\model\Customer();
+    				$map = $customerModel->getWhereByToday();
     		default : $auth_user_ids = ''; break; //全部
     	}
     	$auth_user_ids = $auth_user_ids ? : [];

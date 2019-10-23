@@ -1,7 +1,7 @@
 <template>
   <div class="container">
     <div class="create-button-container"
-         :style="{ 'padding-top': createButtonTitle != '' ? '40px' : '25px' }">
+         :style="{ 'padding-top': createButtonTitle != '' ? '40px' : '25px', 'background-color':backgroundColor }">
       <el-popover v-if="createButtonTitle != ''"
                   placement="right"
                   :offset="addOffset"
@@ -17,15 +17,14 @@
                class="button-name">{{createButtonTitle}}</div>
           <div v-show="!buttonNameCollapse"
                class="button-line"></div>
-          <i class="el-icon-arrow-right button-mark"></i>
+          <i class="button-mark"
+             :class="createButtonIcon"></i>
         </div>
       </el-popover>
     </div>
-    <!-- <slot name="oaAddDialog"></slot> -->
     <el-menu :default-active="activeIndex"
-             @select="menuSelect"
-             :style="{'border-right-color': backgroundColor}"
-             class="el-menu-vertical-demo"
+             :style="{'border-right-color': backgroundColor, 'padding-top': createButtonTitle != '' ? '90px' : '40px'}"
+             class="el-menu-vertical"
              :text-color="textColor"
              :background-color="backgroundColor"
              :active-text-color="activeTextColor"
@@ -33,33 +32,41 @@
              unique-opened>
       <template v-for="(item, index) in items"
                 v-if="!item.hidden">
-        <el-menu-item v-if="!item.children"
-                      :key="index"
-                      :index="item.path"
-                      class="menu-item-defalt"
-                      :class="{'menu-item-select': activeIndex == item.path}">
-          <i class="wukong"
-             :class="'wukong-' + item.meta.icon"
-             :style="{ 'color': activeIndex == item.path ? activeTextColor : textColor}"></i>
-          <span slot="title">{{item.meta.title}}</span>
-        </el-menu-item>
+        <router-link v-if="!item.children"
+                     :key="index"
+                     :to="getFullPath(item.path)">
+          <el-menu-item :index="getFullPath(item.path)"
+                        class="menu-item-defalt"
+                        :class="{'menu-item-select': activeIndex == getFullPath(item.path)}">
+            <i class="wukong"
+               :class="'wukong-' + item.meta.icon"
+               :style="{ 'color': activeIndex == getFullPath(item.path) ? activeTextColor : textColor, fontSize: item.meta.fontSize || '16px'}"></i>
+            <span slot="title">{{item.meta.title}}</span>
+            <el-badge v-if="item.meta.num && item.meta.num > 0"
+                      :max="99"
+                      :value="item.meta.num"></el-badge>
+          </el-menu-item>
+        </router-link>
         <el-submenu v-else
                     :key="index"
-                    :index="item.path">
+                    :index="getFullPath(item.path)">
           <template slot="title"
                     v-if="!item.hidden">
             <i class="wukong"
-               :class="'wukong-' + item.meta.icon"></i>
+               :class="'wukong-' + item.meta.icon"
+               :style="{fontSize: item.meta.fontSize || '16px'}"></i>
             <span slot="title">{{item.meta.title}}</span>
           </template>
-          <el-menu-item v-for="(subitem, subindex) in item.children"
-                        v-if="!item.hidden"
-                        :key="subindex"
-                        :index="subitem.path"
-                        class="menu-item-defalt"
-                        :class="{'menu-item-select': activeIndex == subitem.path }">
-            {{subitem.meta.title}}
-          </el-menu-item>
+          <router-link v-for="(subitem, subindex) in item.children"
+                       v-if="!item.hidden"
+                       :key="subindex"
+                       :to="getFullPath(subitem.path)">
+            <el-menu-item :index="getFullPath(subitem.path)"
+                          class="menu-item-defalt"
+                          :class="{'menu-item-select': activeIndex == getFullPath(subitem.path) }">
+              {{subitem.meta.title}}
+            </el-menu-item>
+          </router-link>
         </el-submenu>
       </template>
     </el-menu>
@@ -142,25 +149,25 @@ export default {
     createButtonBackgroundColor: {
       type: String,
       default: '#3E84E9'
+    },
+    createButtonIcon: {
+      type: String,
+      default: 'el-icon-arrow-right'
     }
   },
   mounted() {},
   methods: {
     toggleSideBarClick() {
       this.collapse = !this.collapse
-      this.$root.eventHub.$emit('collapseBtn', this.collapse)
     },
-    menuSelect(key, keyPath) {
-      this.$router.push('/' + this.mainRouter + '/' + key)
-    },
+
     // 快速创建
     quicklyCreate() {
-      switch (this.mainRouter) {
-        case 'project':
-          this.$router.push('add-project')
-          break
-      }
       this.$emit('quicklyCreate')
+    },
+
+    getFullPath(path) {
+      return `/${this.mainRouter}/${path}`
     }
   }
 }
@@ -172,9 +179,25 @@ export default {
   height: 100%;
 }
 
-.el-menu-vertical-demo:not(.el-menu--collapse) {
+.el-menu-vertical:not(.el-menu--collapse) {
   width: 200px;
   min-height: 400px;
+}
+
+.el-menu-vertical {
+  height: 100%;
+  overflow: auto;
+  padding-bottom: 48px;
+  .el-submenu.is-active {
+    .el-submenu__title {
+      .wukong {
+        color: white;
+      }
+      span {
+        color: white;
+      }
+    }
+  }
 }
 
 .menu-item-icon-container {
@@ -201,21 +224,16 @@ export default {
   background-color: #454e57 !important;
 }
 
-.menu-item-workbench-select {
-  border-left: 2px solid #3e84e9;
-  background-color: #454e57 !important;
-}
-
-.menu-item-workbench:hover {
-  background-color: #454e57 !important;
-}
-
 .create-button-container {
   padding: 15px 12px 15px 12px;
   color: white;
   font-size: 14px;
   cursor: pointer;
-  position: relative;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
 
   .create-button {
     display: flex;
@@ -275,5 +293,15 @@ export default {
 
 .wukong {
   margin-right: 8px;
+}
+
+// 消息数
+.el-badge {
+  position: absolute;
+  right: 15px;
+  top: 5px;
+  /deep/ .el-badge__content {
+    border-width: 0;
+  }
 }
 </style>

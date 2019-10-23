@@ -82,7 +82,7 @@
           <flexbox class="content-table-header">
             <div class="content-table-header-reminder">
               <reminder v-if="this.roleActive && this.roleActive.pid == 1"
-                        :content="managerGroupReminderContent(this.roleActive.id)">
+                        :content="managerGroupReminderContent(this.roleActive.types)">
               </reminder>
             </div>
             <el-button size="medium"
@@ -90,6 +90,7 @@
                        @click="addEmployees"> 关联员工 </el-button>
           </flexbox>
           <el-table :data="tableData"
+                    :height="tableHeight"
                     style="width: 100%">
             <el-table-column :prop="item.field"
                              show-overflow-tooltip
@@ -101,17 +102,27 @@
                 <div class="table-head-name">{{scope.column.label}}</div>
               </template>
             </el-table-column>
-            <el-table-column fixed="right"
-                             label="操作"
-                             show-overflow-tooltip>
+            <el-table-column label="操作">
               <template slot-scope="scope">
-                <span class="el-icon-edit content-table-span"
-                      @click="editBtn(scope.row)"></span>
+                <!-- <span class="el-icon-edit content-table-span"
+                      @click="editBtn(scope.row)"></span> -->
                 <span class="el-icon-delete content-table-span"
                       @click="delectBtn(scope.row)"></span>
               </template>
             </el-table-column>
           </el-table>
+          <div class="p-contianer">
+            <el-pagination class="p-bar"
+                           @size-change="handleSizeChange"
+                           @current-change="handleCurrentChange"
+                           :current-page="currentPage"
+                           :page-sizes="pageSizes"
+                           :page-size.sync="pageSize"
+                           layout="total, sizes, prev, pager, next, jumper"
+                           :total="total">
+            </el-pagination>
+          </div>
+
         </div>
         <!-- 权限管理 -->
         <div class="jurisdiction-box"
@@ -138,6 +149,7 @@
                 <el-tree :data="showTreeData"
                          show-checkbox
                          node-key="id"
+                         style="height: 0;"
                          ref="tree"
                          :indent="0"
                          empty-text=""
@@ -200,6 +212,11 @@ export default {
     return {
       activeIndex: '1', // 角色员工  角色权限 切换 默认左边
       tableData: [], // 与角色关联的员工
+      tableHeight: document.documentElement.clientHeight - 319, // 表的高度
+      currentPage: 1,
+      pageSize: 15,
+      pageSizes: [15, 30, 45, 60],
+      total: 0,
       tableList: [
         { label: '姓名', field: 'realname' },
         { label: '部门', field: 's_name' },
@@ -246,6 +263,10 @@ export default {
   },
   computed: {},
   mounted() {
+    /** 控制table的高度 */
+    window.onresize = () => {
+      this.tableHeight = document.documentElement.clientHeight - 319
+    }
     /** 获取权限信息 */
     this.getRulesList()
   },
@@ -376,21 +397,23 @@ export default {
       })
     },
     // 管理角色说明
-    managerGroupReminderContent(id) {
-      if (id == 1) {
+    managerGroupReminderContent(types) {
+      if (types == 1) {
         return '超级管理员不可被任何管理员删除，默认系统所有权限，也可添加其他超级管理员'
-      } else if (id == 2) {
+      } else if (types == 2) {
         return '系统设置管理员拥有整个系统的“系统设置”权限'
-      } else if (id == 3) {
+      } else if (types == 3) {
         return '员工与角色权限管理的管理权限，可管理公司的组织结构和员工账号的增加、停用，可创建角色并为员工分配角色授权'
-      } else if (id == 4) {
+      } else if (types == 4) {
         return '审批管理员可配置、管理所有审批流程'
-      } else if (id == 5) {
+      } else if (types == 5) {
         return '办公管理员可以对“办公”的所有设置进行管理'
-      } else if (id == 6) {
+      } else if (types == 6) {
         return '客户管理管理员可以对“客户管理”的所有设置进行管理'
-      } else if (id == 7) {
+      } else if (types == 8) {
         return '公告管理员有新建、删除、结束公告的操作'
+      } else if (types == 7) {
+        return '项目管理员拥有“项目管理”模块所有权限，能看到并维护所有项目信息'
       }
       return ''
     },
@@ -519,18 +542,38 @@ export default {
       this.roleRulesEdit['bi_upload'] = role.rules['bi'] ? role.rules['bi'] : []
     },
     // 获取角色下员工列表
-    getUserListWithRole(role) {
+    getUserListWithRole(role, noReset) {
+      if (!noReset) {
+        this.currentPage = 1
+      }
       this.menuLoading = true
       adminUsersIndex({
+        page: this.currentPage,
+        limit: this.pageSize,
         group_id: role.id
       })
         .then(res => {
           this.tableData = res.data.list
+          this.total = res.data.dataCount
           this.menuLoading = false
         })
         .catch(err => {
           this.menuLoading = false
         })
+    },
+    /**
+     * 更改每页展示数量
+     */
+    handleSizeChange(val) {
+      this.pageSize = val
+      this.getUserListWithRole(this.roleActive, true)
+    },
+    /**
+     * 更改当前页数
+     */
+    handleCurrentChange(val) {
+      this.currentPage = val
+      this.getUserListWithRole(this.roleActive, true)
     },
     // 员工权限标记
     getUserRulesWithRole(role) {
@@ -661,11 +704,9 @@ export default {
 
 <style lang="scss" scoped>
 .role-authorization {
-  display: flex;
-  flex-direction: column;
   height: 100%;
-  /* padding: 20px; */
   box-sizing: border-box;
+  overflow: hidden;
 }
 .title {
   font-size: 18px;
@@ -676,19 +717,18 @@ export default {
   color: #333;
 }
 .role-box {
-  flex: 1;
-  display: flex;
-  overflow-y: scroll;
-  overflow-x: hidden;
+  height: calc(100% - 60px);
+  overflow: hidden;
+  position: relative;
 }
 .nav {
-  min-width: 200px;
+  width: 200px;
   background: #fff;
-  margin-right: 10px;
   border: 1px solid #e6e6e6;
-  display: flex;
-  overflow: auto;
-  flex-direction: column;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 .nav-new-btn {
   text-align: center;
@@ -703,16 +743,16 @@ export default {
   border-radius: 2px;
 }
 .content-box {
-  flex: 1;
   background: #fff;
   border: 1px solid #e6e6e6;
-  display: flex;
-  flex-direction: column;
+  margin-left: 215px;
+  height: 100%;
+  overflow: hidden;
 }
 .content-table {
   padding-bottom: 15px;
+  height: calc(100% - 61px);
   overflow: hidden;
-  flex: 1;
 }
 .content-table > .el-button {
   float: right;
@@ -721,7 +761,7 @@ export default {
 }
 .content-box .content-table-span {
   color: #3e84e9;
-  padding-right: 20px;
+  margin-left: 5px;
   cursor: pointer;
 }
 
@@ -729,29 +769,32 @@ export default {
   padding: 15px;
   .content-table-header-reminder {
     flex: 1;
+    margin-right: 5px;
   }
 }
 
 /* 权限管理 */
 .jurisdiction-content {
-  display: flex;
-  flex: 1;
+  height: calc(100% - 61px);
+  position: relative;
   overflow: hidden;
 }
 .content-left {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
+  height: 100%;
+  margin-right: 250px;
+  overflow: hidden;
 }
 .content-right {
   width: 250px;
-  display: flex;
-  flex-direction: column;
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
 }
 .jurisdiction-box {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
+  padding-bottom: 15px;
+  height: calc(100% - 61px);
+  overflow: hidden;
 }
 .jurisdiction-title {
   border-bottom: 1px dashed #e6e6e6;
@@ -759,8 +802,8 @@ export default {
 }
 .jurisdiction-content-checkbox {
   border-right: 1px dashed #e6e6e6;
-  flex: 1;
-  overflow: auto;
+  height: calc(100% - 47px);
+  overflow-y: scroll;
   padding: 20px;
 }
 .jurisdiction-content-checkbox
@@ -802,9 +845,9 @@ export default {
 }
 .role-nav-box {
   line-height: 30px;
-  flex: 1;
-  overflow: auto;
+  overflow-y: auto;
   padding: 5px 0 20px 0;
+  height: calc(100% - 65px);
 }
 .role-nav-box .item-list {
   color: #333;
@@ -853,5 +896,16 @@ export default {
   right: 30px;
 }
 
+/** 分页布局 */
+.p-contianer {
+  position: relative;
+  background-color: white;
+  height: 44px;
+  .p-bar {
+    float: right;
+    margin: 5px 100px 0 0;
+    font-size: 14px !important;
+  }
+}
 @import './styles/table.scss';
 </style>

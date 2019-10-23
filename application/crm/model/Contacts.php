@@ -38,9 +38,17 @@ class Contacts extends Common
     	$search = $request['search'];
     	$user_id = $request['user_id'];
     	$scene_id = (int)$request['scene_id'];
+    	$is_excel = $request['is_excel']; //导出
+    	$business_id = $request['business_id'];
+		$order_field = $request['order_field'];
+    	$order_type = $request['order_type'];    	
 		unset($request['scene_id']);
 		unset($request['search']);
-		unset($request['user_id']);	    	
+		unset($request['user_id']);
+		unset($request['is_excel']);		    	
+		unset($request['business_id']);
+		unset($request['order_field']);	
+		unset($request['order_type']);				    	
 
         $request = $this->fmtRequest( $request );
         $requestMap = $request['map'] ? : [];
@@ -53,17 +61,25 @@ class Contacts extends Common
 			//默认场景
 			$sceneMap = $sceneModel->getDefaultData('contacts', $user_id) ? : [];
 		}
+		$searchMap = [];
 		if ($search) {
 			//普通筛选
-			$sceneMap['name'] = ['condition' => 'contains','value' => $search,'form_type' => 'text','name' => '联系人姓名'];
+			$searchMap = function($query) use ($search){
+			        $query->where('contacts.name',array('like','%'.$search.'%'))
+			        	->whereOr('contacts.mobile',array('like','%'.$search.'%'))
+			        	->whereOr('contacts.telephone',array('like','%'.$search.'%'));
+			};			
+			// $sceneMap['name'] = ['condition' => 'contains','value' => $search,'form_type' => 'text','name' => '联系人姓名'];
 		}
 		//优先级：普通筛选>高级筛选>场景
 		$map = $requestMap ? array_merge($sceneMap, $requestMap) : $sceneMap;
 		//高级筛选
 		$map = where_arr($map, 'crm', 'contacts', 'index');		
 		//权限
+		$a = 'index';
+		if ($is_excel) $a = 'excelExport';		
 		$authMap = [];
-		$auth_user_ids = $userModel->getUserByPer('crm', 'contacts', 'index');
+		$auth_user_ids = $userModel->getUserByPer('crm', 'contacts', $a);
 		if (isset($map['contacts.owner_user_id'])) {
 			if (!is_array($map['contacts.owner_user_id'][1])) {
 				$map['contacts.owner_user_id'][1] = [$map['contacts.owner_user_id'][1]];
@@ -78,18 +94,26 @@ class Contacts extends Common
 	    $auth_user_ids = array_merge(array_unique(array_filter($auth_user_ids))) ? : ['-1'];
 	    //负责人、相关团队
 	    $authMap['contacts.owner_user_id'] = ['in',$auth_user_ids];		
-
+		//联系人商机
+		if ($business_id) {
+			$contacts_id = Db::name('crm_contacts_business')->where(['business_id' => $business_id])->column('contacts_id');
+			if ($contacts_id) {
+		    	$map['contacts.contacts_id'] = array('in',$contacts_id);
+		    }else{
+		    	$map['contacts.contacts_id'] = array('eq',-1);
+		    }
+		}	    
 		//列表展示字段
-		// $indexField = $fieldModel->getIndexField('crm_contacts', $user_id); 
+		$indexField = $fieldModel->getIndexField('crm_contacts', $user_id, 1) ? : array('name');
 		$userField = $fieldModel->getFieldByFormType('crm_contacts', 'user'); //人员类型
 		$structureField = $fieldModel->getFieldByFormType('crm_contacts', 'structure');  //部门类型			
 
-		if ($request['order_type'] && $request['order_field']) {
-			$order = trim($request['order_field']).' '.trim($request['order_type']);
+		//排序
+		if ($order_type && $order_field) {
+			$order = $fieldModel->getOrderByFormtype('crm_contacts','contacts',$order_field,$order_type);
 		} else {
 			$order = 'contacts.update_time desc';
-		}	
-		
+		}
 		$readAuthIds = $userModel->getUserByPer('crm', 'contacts', 'read');
         $updateAuthIds = $userModel->getUserByPer('crm', 'contacts', 'update');
         $deleteAuthIds = $userModel->getUserByPer('crm', 'contacts', 'delete');		
@@ -97,16 +121,17 @@ class Contacts extends Common
 				->alias('contacts')
 				->join('__CRM_CUSTOMER__ customer','contacts.customer_id = customer.customer_id','LEFT')
 				->where($map)
+				->where($searchMap)
 				->where($authMap)
-        		->page($request['page'], $request['limit'])
+        		->limit(($request['page']-1)*$request['limit'], $request['limit'])
         		->field('contacts.*,customer.name as customer_name')
-        		// ->field('contacts_id,'.implode(',',$indexField)
-        		->order($order)
+        		->field(implode(',',$indexField).',customer.name as customer_name')
+        		->orderRaw($order)
         		->select();	
         $dataCount = db('crm_contacts')
         			->alias('contacts')
         			->join('__CRM_CUSTOMER__ customer','contacts.customer_id = customer.customer_id','LEFT')
-        			->where($map)->where($authMap)->count('contacts_id');
+        			->where($map)->where($searchMap)->where($authMap)->count('contacts_id');
         foreach ($list as $k=>$v) {
         	$list[$k]['create_user_id_info'] = isset($v['create_user_id']) ? $userModel->getUserById($v['create_user_id']) : [];
         	$list[$k]['owner_user_id_info'] = isset($v['owner_user_id']) ? $userModel->getUserById($v['owner_user_id']) : [];
@@ -151,20 +176,17 @@ class Contacts extends Common
 		// 自动验证
 		$validateArr = $fieldModel->validateField($this->name); //获取自定义字段验证规则
 		$validate = new Validate($validateArr['rule'], $validateArr['message']);
-
 		$result = $validate->check($param);
 		if (!$result) {
 			$this->error = $validate->getError();
 			return false;
 		}
-
 		//处理部门、员工、附件、多选类型字段
 		$arrFieldAtt = $fieldModel->getArrayField('crm_contacts');
 		foreach ($arrFieldAtt as $k=>$v) {
 			$param[$v] = arrayToString($param[$v]);
 		}
-
-		if ($this->data($param)->allowField(true)->save()) {
+		if ($this->data($param)->allowField(true)->isUpdate(false)->save()) {
 			$data = [];
 			$data['contacts_id'] = $this->contacts_id;
 			return $data;
@@ -193,18 +215,25 @@ class Contacts extends Common
 	 */	
 	public function updateDataById($param, $contacts_id = '')
 	{
+		$userModel = new \app\admin\model\User();
 		$dataInfo = $this->getDataById($contacts_id);
 		if (!$dataInfo) {
 			$this->error = '数据不存在或已删除';
 			return false;
 		}
+		//判断权限
+        $auth_user_ids = $userModel->getUserByPer('crm', 'contacts', 'update');
+        if (!in_array($dataInfo['owner_user_id'],$auth_user_ids)) {
+            $this->error = '无权操作';
+            return false;
+        } 		
+
 		$param['contacts_id'] = $contacts_id;
 		//过滤不能修改的字段
 		$unUpdateField = ['create_user_id','is_deleted','delete_time'];
 		foreach ($unUpdateField as $v) {
 			unset($param[$v]);
 		}
-		
 		$fieldModel = new \app\admin\model\Field();
 		// 自动验证
 		$validateArr = $fieldModel->validateField($this->name); //获取自定义字段验证规则
@@ -222,7 +251,7 @@ class Contacts extends Common
 			$param[$v] = arrayToString($param[$v]);
 		}
 
-		if ($this->allowField(true)->save($param, ['contacts_id' => $contacts_id])) {
+		if ($this->update($param, ['contacts_id' => $contacts_id], true)) {
 			//修改记录
 			updateActionLog($param['user_id'], 'crm_contacts', $contacts_id, $dataInfo->data, $param);
 			$data = [];

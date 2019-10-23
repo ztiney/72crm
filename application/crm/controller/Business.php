@@ -138,9 +138,9 @@ class Business extends ApiCommon
      */
     public function delete()
     {
+        $param = $this->param; 
         $businessModel = model('Business');
-        $param = $this->param;        
-
+        $recordModel = new \app\admin\model\Record();    
         if (!is_array($param['id'])) {
             $business_id[] = $param['id'];
         } else {
@@ -173,9 +173,9 @@ class Business extends ApiCommon
             if (!$data) {
                 return resultArray(['error' => $businessModel->getError()]);
             }
-            //删除操作记录
-            $actionRecordModel = new \app\admin\model\ActionRecord();
-            $res = $actionRecordModel->delDataById(['types' => 'crm_business','action_id' => $delIds]);
+            //删除跟进记录
+            $recordModel->delDataByTypes('crm_business',$delIds);            
+            actionLog($delIds,'','','');         
         }
         if ($errorMessage) {
             return resultArray(['error' => $errorMessage]);
@@ -241,7 +241,7 @@ class Business extends ApiCommon
             $businessInfo = $businessModel->getDataById($business_id);
 
             if (!$businessInfo) {
-                $errorMessage[] = 'id:为'.$business_id.'的商机转移失败，错误原因：数据不存在；';
+                $errorMessage[] = '名称:为《'.$businessInfo['name'].'》的商机转移失败，错误原因：数据不存在；';
                 continue;
             }
             //权限判断
@@ -299,8 +299,8 @@ class Business extends ApiCommon
             $dataList[$k]['category_id_info'] = $category_name ? : '';
         }
         $list['list'] = $dataList ? : [];
-        $list['total_price'] = $contractInfo['total_price'] ? : '0.00';
-        $list['discount_rate'] = $contractInfo['discount_rate'] ? : '0.00';        
+        $list['total_price'] = $businessInfo['total_price'] ? : '0.00';
+        $list['discount_rate'] = $businessInfo['discount_rate'] ? : '0.00';        
         return resultArray(['data' => $list]);
     }  
 

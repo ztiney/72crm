@@ -1,7 +1,7 @@
 <template>
   <div>
     <c-r-m-list-head title="客户管理"
-                     placeholder="请输入客户名称"
+                     placeholder="请输入客户名称/手机/电话"
                      @on-handle="listHeadHandle"
                      @on-search="crmSearch"
                      main-title="新建客户"
@@ -28,6 +28,7 @@
                 style="width: 100%"
                 :cell-style="cellStyle"
                 @row-click="handleRowClick"
+                @sort-change="sortChange"
                 @header-dragend="handleHeaderDragend"
                 @selection-change="handleSelectionChange">
         <el-table-column show-overflow-tooltip
@@ -68,6 +69,7 @@
         </el-table-column>
         <el-table-column v-for="(item, index) in fieldList"
                          :key="index"
+                         sortable="custom"
                          show-overflow-tooltip
                          :fixed="index==0"
                          :prop="item.prop"
@@ -79,7 +81,8 @@
             <div class="table-head-name">{{scope.column.label}}</div>
           </template>
         </el-table-column>
-        <el-table-column prop="pool_day"
+        <el-table-column v-if="CRMConfig.config == 1"
+                         prop="pool_day"
                          show-overflow-tooltip
                          :resizable='false'
                          label="距进入公海天数"
@@ -118,6 +121,7 @@
     <c-r-m-all-detail :visible.sync="showDview"
                       :crmType="rowType"
                       :id="rowID"
+                      @handle="handleHandle"
                       class="d-view">
     </c-r-m-all-detail>
     <fields-set :crmType="crmType"
@@ -127,10 +131,10 @@
 </template>
 
 <script>
-import { crmCustomerExcelExport } from '@/api/customermanagement/customer'
 import CRMAllDetail from '@/views/customermanagement/components/CRMAllDetail'
 import BusinessCheck from './components/BusinessCheck' // 相关商机
 import table from '../mixins/table'
+import { mapGetters } from 'vuex'
 
 export default {
   /** 客户管理 的 客户列表 */
@@ -145,7 +149,9 @@ export default {
       crmType: 'customer'
     }
   },
-  computed: {},
+  computed: {
+    ...mapGetters(['CRMConfig'])
+  },
   mounted() {},
   methods: {
     relativeBusinessClick(data) {
@@ -160,36 +166,6 @@ export default {
       } else {
         return ''
       }
-    },
-    // 导出操作
-    exportInfos() {
-      var params = {
-        search: this.search
-      }
-      if (this.scene_id) {
-        params.scene_id = this.scene_id
-      }
-      for (var key in this.filterObj) {
-        params[key] = this.filterObj[key]
-      }
-      crmCustomerExcelExport(params)
-        .then(res => {
-          var blob = new Blob([res.data], {
-            type: 'application/vnd.ms-excel;charset=utf-8'
-          })
-          var downloadElement = document.createElement('a')
-          var href = window.URL.createObjectURL(blob) //创建下载的链接
-          downloadElement.href = href
-          downloadElement.download =
-            decodeURI(
-              res.headers['content-disposition'].split('filename=')[1]
-            ) || '' //下载后文件名
-          document.body.appendChild(downloadElement)
-          downloadElement.click() //点击下载
-          document.body.removeChild(downloadElement) //下载完成移除元素
-          window.URL.revokeObjectURL(href) //释放掉blob对象
-        })
-        .catch(() => {})
     },
     // 商机信息查看
     businessCheckClick(e, scope) {
@@ -213,5 +189,13 @@ export default {
 @import '../styles/table.scss';
 .customer-lock {
   color: #f15e64;
+}
+
+.el-table /deep/ tbody tr td:nth-child(2) {
+  border-right-width: 0;
+}
+
+.el-table /deep/ tbody tr td:nth-child(3) {
+  border-right: 1px solid #e6e6e6;
 }
 </style>

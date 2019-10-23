@@ -40,7 +40,7 @@
 </template>
 
 <script>
-import workbenchRouter from '@/router/modules/workbench'
+import { mapGetters } from 'vuex'
 import { Navbar, Sidebar, AppMain } from './components'
 import ExamineCreateView from '@/views/OAManagement/examine/components/examineCreateView'
 import ExamineCategorySelect from '@/views/OAManagement/examine/components/examineCategorySelect'
@@ -91,10 +91,23 @@ export default {
     }
   },
   computed: {
+    ...mapGetters(['messageOANum', 'oaRouters']),
     sidebarItems() {
-      return workbenchRouter.children
+      let workbenchMenus = this.oaRouters.children
+      for (let index = 0; index < workbenchMenus.length; index++) {
+        const messageItem = workbenchMenus[index]
+        if (messageItem.numType) {
+          messageItem.meta.num = this.messageOANum[messageItem.numType] || 0
+        }
+      }
+      return workbenchMenus
     }
   },
+
+  created() {
+    this.getOAMessagNum()
+  },
+
   methods: {
     navClick(index) {},
     // 新增跳转
@@ -121,6 +134,16 @@ export default {
     selcetExamineCategory(item) {
       this.createInfo = item
       this.isCreate = true
+    },
+
+    /**
+     * 获取消息数
+     */
+    getOAMessagNum() {
+      this.$store
+        .dispatch('GetOAMessageNum')
+        .then(res => {})
+        .catch(() => {})
     }
   }
 }

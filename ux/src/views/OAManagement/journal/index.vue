@@ -5,10 +5,15 @@
                @click="newBtn">写日志</el-button>
     <el-tabs v-model="activeName"
              @tab-click="tabClick">
-      <el-tab-pane :label="item.label"
-                   :name="item.key"
+      <el-tab-pane :name="item.key"
                    v-for="(item, index) in tabsData"
                    :key="index">
+        <el-badge slot="label"
+                  :hidden="item.key != '3' || messageOANum.logNum == 0"
+                  :max="99"
+                  :value="messageOANum.logNum">
+          <span>{{item.label}}</span>
+        </el-badge>
         <v-content id="journal-list-box"
                    :ref="'log-list' + item.key"
                    :activeName="activeName"
@@ -41,6 +46,7 @@
 <script>
 import VContent from './content'
 import newDialog from './newDialog'
+import { mapGetters } from 'vuex'
 import { objDeepCopy } from '@/utils'
 
 // API
@@ -93,6 +99,7 @@ export default {
     }
   },
   computed: {
+    ...mapGetters(['messageOANum']),
     byData() {
       return { '1': '', '2': 'me', '3': 'other', '4': 'notRead' }[
         this.activeName
@@ -102,25 +109,6 @@ export default {
   watch: {
     $route(to, from) {
       this.$router.go(0)
-    },
-    journalData: function(newData, oldVal) {
-      for (let item of newData) {
-        item.allData = {}
-        item.allData.business = item.businessList
-        item.allData.contacts = item.contactsList
-        item.allData.contract = item.contractList
-        item.allData.customer = item.customerList
-        if (
-          item.businessList.length != 0 ||
-          item.contactsList.length != 0 ||
-          item.contractList.length != 0 ||
-          item.customerList.length != 0
-        ) {
-          item.allDataShow = true
-        } else {
-          item.allDataShow = false
-        }
-      }
     }
   },
   beforeRouteUpdate(to, from, next) {
@@ -147,22 +135,19 @@ export default {
   methods: {
     initControlPage() {
       // 分批次加载
-      let _this = this
-      for (let item of document.getElementsByClassName('list-box')) {
-        item.onscroll = function(e) {
-          if (e && e.target.id == 'list-box' + _this.activeName) {
-            _this.$bus.emit('journal-list-box-scroll', e.target)
-            let doms = item
-            var scrollTop = doms.scrollTop
-            var windowHeight = doms.clientHeight
-            var scrollHeight = doms.scrollHeight //滚动条到底部的条件
-            if (scrollTop + windowHeight == scrollHeight) {
-              _this.loadMoreLoading = true
-              if (_this.isPost) {
-                _this.pageNum++
-                _this.getLogList()
+      for (let dom of document.getElementsByClassName('list-box')) {
+        dom.onscroll = e => {
+          if (e && e.target.id == 'list-box' + this.activeName) {
+            this.$bus.emit('journal-list-box-scroll', e.target)
+            let scrollOff = dom.scrollTop + dom.clientHeight - dom.scrollHeight
+            //滚动条到底部的条件
+            if (Math.abs(scrollOff) < 10 && this.loadMoreLoading == true) {
+              if (!this.isPost) {
+                this.isPost = true
+                this.pageNum++
+                this.getLogList()
               } else {
-                _this.loadMoreLoading = false
+                this.loadMoreLoading = false
               }
             }
           }
@@ -186,13 +171,12 @@ export default {
       journalList(params)
         .then(res => {
           this.journalLoading = false
-          if (res.data.list.length == 0 || res.data.list.length != 15) {
+          if (res.data.list.length< 15) {
             this.loadText = '没有更多了'
-            this.isPost = false
             this.loadMoreLoading = false
           } else {
             this.loadText = '加载更多'
-            this.isPost = true
+            this.loadMoreLoading = true
           }
           for (let item of res.data.list) {
             item.showComment = false
@@ -200,10 +184,11 @@ export default {
 
           this.journalData = this.journalData.concat(res.data.list)
           this.createInitAwaitMessage()
-          this.loadMoreLoading = false
+          this.isPost = false
         })
         .catch(err => {
           this.journalLoading = false
+          this.isPost = false
         })
     },
     createInitAwaitMessage() {
@@ -344,7 +329,6 @@ export default {
           })
           .catch(err => {
             this.newLoading = false
-            this.$message.error('编辑失败')
           })
       }
     },
@@ -418,5 +402,10 @@ export default {
       cursor: auto;
     }
   }
+}
+
+// 消息效果
+.el-badge /deep/ .el-badge__content.is-fixed {
+  top: 15px;
 }
 </style>

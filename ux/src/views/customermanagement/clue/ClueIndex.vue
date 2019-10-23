@@ -1,7 +1,7 @@
 <template>
   <div>
     <c-r-m-list-head title="线索管理"
-                     placeholder="请输入线索名称"
+                     placeholder="请输入线索名称/手机/电话"
                      @on-handle="listHeadHandle"
                      @on-search="crmSearch"
                      main-title="新建线索"
@@ -28,6 +28,7 @@
                 style="width: 100%"
                 :cell-style="cellStyle"
                 @row-click="handleRowClick"
+                @sort-change="sortChange"
                 @header-dragend="handleHeaderDragend"
                 @selection-change="handleSelectionChange">
         <el-table-column show-overflow-tooltip
@@ -37,6 +38,7 @@
         </el-table-column>
         <el-table-column v-for="(item, index) in fieldList"
                          :key="index"
+                         sortable="custom"
                          show-overflow-tooltip
                          :fixed="index==0"
                          :prop="item.prop"
@@ -84,7 +86,6 @@
 </template>
 
 <script>
-import { crmLeadsExcelExport } from '@/api/customermanagement/clue'
 import ClueDetail from './ClueDetail'
 import table from '../mixins/table'
 
@@ -103,36 +104,6 @@ export default {
   computed: {},
   mounted() {},
   methods: {
-    // 导出操作
-    exportInfos() {
-      var params = {
-        search: this.search
-      }
-      if (this.scene_id) {
-        params.scene_id = this.scene_id
-      }
-      for (var key in this.filterObj) {
-        params[key] = this.filterObj[key]
-      }
-      crmLeadsExcelExport(params)
-        .then(res => {
-          var blob = new Blob([res.data], {
-            type: 'application/vnd.ms-excel;charset=utf-8'
-          })
-          var downloadElement = document.createElement('a')
-          var href = window.URL.createObjectURL(blob) //创建下载的链接
-          downloadElement.href = href
-          downloadElement.download =
-            decodeURI(
-              res.headers['content-disposition'].split('filename=')[1]
-            ) || '' //下载后文件名
-          document.body.appendChild(downloadElement)
-          downloadElement.click() //点击下载
-          document.body.removeChild(downloadElement) //下载完成移除元素
-          window.URL.revokeObjectURL(href) //释放掉blob对象
-        })
-        .catch(() => {})
-    },
     /** 通过回调控制style */
     cellStyle({ row, column, rowIndex, columnIndex }) {
       if (column.property === 'name') {

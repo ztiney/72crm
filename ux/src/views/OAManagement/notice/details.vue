@@ -10,15 +10,15 @@
       <div class="content">
         <div class="title">{{titleList.title}}</div>
         <div class="time">{{titleList.create_time | moment("YYYY-MM-DD HH:mm")}}</div>
-        <pre class="text">{{titleList.content}}</pre>
+        <div class="text">{{titleList.content}}</div>
       </div>
       <div class="btn-box"
            v-if="btnShow">
         <el-button type="primary"
-                   v-if="titleList.permission.is_update == 1"
+                   v-if="permissionUpdate"
                    @click="onEdit">编辑</el-button>
         <el-button type="danger"
-                   v-if="titleList.permission.is_delete == 1"
+                   v-if="permissionDelete"
                    @click="deleteFun">删除</el-button>
       </div>
     </div>
@@ -35,7 +35,13 @@
 import CreateView from '@/components/CreateView'
 import VEdit from './edit'
 // API
-import { noticeDelete, noticeEdit } from '@/api/oamanagement/notice'
+import {
+  noticeDelete,
+  noticeEdit,
+  oaAnnouncementReadAPI
+} from '@/api/oamanagement/notice'
+import { mapGetters } from 'vuex'
+
 export default {
   components: {
     CreateView,
@@ -48,6 +54,15 @@ export default {
       loading: false
     }
   },
+  computed: {
+    ...mapGetters(['oa']),
+    permissionUpdate() {
+      return this.oa && this.oa.announcement && this.oa.announcement.update
+    },
+    permissionDelete() {
+      return this.oa && this.oa.announcement && this.oa.announcement.delete
+    }
+  },
   props: {
     titleList: Object,
     btnShow: {
@@ -55,7 +70,24 @@ export default {
       default: true
     }
   },
+
+  created() {
+    this.getDetail()
+  },
+
   methods: {
+    /**
+     * 获取详情
+     */
+    getDetail() {
+      oaAnnouncementReadAPI({
+        announcement_id: this.titleList.announcement_id
+      })
+        .then(res => {
+          this.$store.dispatch('GetOAMessageNum', 'announcement')
+        })
+        .catch(() => {})
+    },
     onEdit() {
       this.showEdit = true
       this.formData = Object.assign({}, this.titleList)

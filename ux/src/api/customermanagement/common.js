@@ -149,10 +149,31 @@ export function crmRecordSave(data) {
   })
 }
 
+// 跟进记录删除
+export function crmRecordDelete(data) {
+  return request({
+    url: 'admin/record/delete',
+    method: 'post',
+    data: data
+  })
+}
+
 // 操作记录
 export function crmIndexFieldRecord(data) {
   return request({
     url: 'admin/index/fieldRecord',
+    method: 'post',
+    data: data
+  })
+}
+
+/**
+ * 记录类型 数据 与系统设置系统(repeat)
+ * @param {*} data 
+ */
+export function crmSettingRecordListAPI(data) {
+  return request({
+    url: 'crm/setting/recordList',
     method: 'post',
     data: data
   })
@@ -217,6 +238,32 @@ export function crmSettingTeam(data) {
 export function crmSettingTeamSave(data) {
   return request({
     url: 'crm/setting/teamSave',
+    method: 'post',
+    data: data
+  })
+}
+
+/**
+ * 获取导入描述信息
+ * @param {*} data
+ * type crm_leads
+ */
+export function adminFieldUniqueFieldAPI(data) {
+  return request({
+    url: 'admin/field/uniqueField',
+    method: 'post',
+    data: data
+  })
+}
+
+/**
+ * 查重
+ * @param {*} data
+ * types crm_leads crm_customer 
+ */
+export function crmIndexSearchAPI(data) {
+  return request({
+    url: 'crm/index/search',
     method: 'post',
     data: data
   })

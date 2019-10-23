@@ -1,7 +1,7 @@
 import {
-  asyncRouterMap,
-  constantRouterMap
+  asyncRouterMap
 } from '@/router'
+import Vue from 'vue'
 
 /**
  * 
@@ -74,6 +74,10 @@ const permission = {
     manageRouters: {
       name: 'manager',
       children: []
+    },
+    oaRouters: {
+      name: 'oa',
+      children: []
     }
   },
   mutations: {
@@ -81,7 +85,9 @@ const permission = {
       state.addRouters = routers
       for (let index = 0; index < routers.length; index++) {
         const element = routers[index]
-        if (element.name == 'crm') {
+        if (element.name == 'oa') {
+          state.oaRouters = element
+        } else if (element.name == 'crm') {
           state.crmRouters = element
         } else if (element.name == 'bi') {
           state.biRouters = element
@@ -89,7 +95,17 @@ const permission = {
           state.manageRouters = element
         }
       }
+    },
+
+    /**
+     * 客户管理待办消息数
+     */
+    SET_CRMROUTERSNUM: (state, num) => {
+      const messageItem = state.crmRouters.children[1]
+      messageItem.meta.num = num
+      Vue.set(state.crmRouters.children, 1, messageItem)
     }
+
   },
   actions: {
     GenerateRoutes({
@@ -97,11 +113,24 @@ const permission = {
     }, data) {
       return new Promise(resolve => {
         const accessedRouters = filterAsyncRouter(asyncRouterMap, data)
+        let redirect = ''
         for (let index = 0; index < accessedRouters.length; index++) {
           const element = accessedRouters[index]
           if (element.children && element.children.length > 0) {
             element.redirect = element.path + '/' + element.children[0].path
           }
+          
+          // 获取跳转
+          if (element.redirect && !redirect) {
+            redirect = element.redirect
+          }
+        }
+        if (redirect) {
+          accessedRouters.push({
+            path: '/',
+            redirect: redirect,
+            hidden: true
+          })
         }
         commit('SET_ROUTERS', accessedRouters)
         resolve()

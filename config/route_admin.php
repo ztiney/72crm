@@ -40,6 +40,8 @@ return [
 
 	// 【角色】列表
 	'admin/groups/index' => ['admin/groups/index', ['method' => 'POST']],
+	// 【角色】分类列表
+	'admin/groups/typeList' => ['admin/groups/typeList', ['method' => 'POST']],	
 	// 【角色】添加
 	'admin/groups/save' => ['admin/groups/save', ['method' => 'POST']],	
 	// 【角色】编辑
@@ -60,11 +62,8 @@ return [
 	'admin/rules/getSublist' => ['admin/rules/getSublist', ['method' => 'POST']],		
 
 	//应用配置
-	'admin/configset/index' => ['admin/configset/index', ['method' => 'POST']],		
-	'admin/configset/update' => ['admin/configset/update', ['method' => 'POST']],		
-	'admin/configset/updatetype' => ['admin/configset/updatetype', ['method' => 'POST']],		
-	'admin/configset/read' => ['admin/configset/read', ['method' => 'POST']],	
-	'admin/configset/typelist' => ['admin/configset/typelist', ['method' => 'POST']],	
+	'admin/config_set/index' => ['admin/config_set/index', ['method' => 'POST']],		
+	'admin/config_set/update' => ['admin/config_set/update', ['method' => 'POST']],
 
 	// 【用户】列表
 	'admin/users/index' => ['admin/users/index', ['method' => 'POST']],	
@@ -156,6 +155,8 @@ return [
 	'admin/field/columnWidth' => ['admin/field/columnWidth', ['method' => 'POST']],		
 	// 【自定义字段】列表排序数据
 	'admin/field/configIndex' => ['admin/field/configIndex', ['method' => 'POST']],	
+	// 【自定义字段】自定义验重字段
+	'admin/field/uniqueField' => ['admin/field/uniqueField', ['method' => 'POST']],	
 
 	// 【站内信】列表
 	'admin/message/index' => ['admin/message/index', ['method' => 'POST']],	
@@ -164,6 +165,8 @@ return [
 	'admin/record/index' => ['admin/record/index', ['method' => 'POST']],
 	// 【跟进记录】创建
 	'admin/record/save' => ['admin/record/save', ['method' => 'POST']],	
+	// 【跟进记录】删除
+	'admin/record/delete' => ['admin/record/delete', ['method' => 'POST']],	
 
 	// 【审批流程】列表
 	'admin/examine_flow/index' => ['admin/examine_flow/index', ['method' => 'POST']],	
@@ -180,7 +183,10 @@ return [
 	// 【审批流程】自选审批人列表
 	'admin/examine_flow/userList' => ['admin/examine_flow/userList', ['method' => 'POST']],	
 	// 【审批流程】审批记录
-	'admin/examine_flow/recordList' => ['admin/examine_flow/recordList', ['method' => 'POST']],					
+	'admin/examine_flow/recordList' => ['admin/examine_flow/recordList', ['method' => 'POST']],	
+
+	// 【员工部门】员工账号编辑
+	'admin/users/usernameEdit' => ['admin/users/usernameEdit', ['method' => 'POST']],					
 	
 	// MISS路由
 	'__miss__'  => 'admin/base/miss',

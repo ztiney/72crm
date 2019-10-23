@@ -1,4 +1,3 @@
-
 /** 获取file大小的名称 */
 export function fileSize(size) {
   var size_int = size
@@ -26,11 +25,18 @@ export function getMaxIndex() {
 
 /** 深拷贝 */
 export function objDeepCopy(source) {
-  var sourceCopy = source instanceof Array ? [] : {}
-  for (var item in source) {
-    sourceCopy[item] = typeof source[item] === 'object' ? objDeepCopy(source[item]) : source[item]
+  if (typeof source === 'object') {
+    var sourceCopy = source instanceof Array ? [] : {}
+    for (var item in source) {
+      if (!source[item]) {
+        sourceCopy[item] = source[item]
+      } else {
+        sourceCopy[item] = typeof source[item] === 'object' ? objDeepCopy(source[item]) : source[item]
+      }
+    }
+    return sourceCopy
   }
-  return sourceCopy
+  return source
 }
 
 /** 获取文件类型图标 */
@@ -113,9 +119,9 @@ export function regexIsCRMMoneyNumber(nubmer) {
   return true
 }
 
-/** 判断输入的是电话*/
+/** 判断输入长度为 6~11 的数字电话*/
 export function regexIsCRMMobile(mobile) {
-  var regex = /^1[3-9]\d{9}$/
+  var regex = /^(\+?0?\d{2,4}\-?)?\d{6,11}$/
   if (!regex.test(mobile)) {
     return false
   }
@@ -139,11 +145,14 @@ export function regexIsCRMEmail(email) {
 import moment from 'moment'
 
 export function getDateFromTimestamp(time) {
-  var times = 0
+  time = time ? time.toString() : ''
+  let times = 0
   if (time.length === 13) {
     times = parseInt(time)
-  } else {
+  } else if (time.length === 10) {
     times = parseInt(time) * 1000
+  } else {
+    return null
   }
   return new Date(times) // 如果date为13位不需要乘1000
 }

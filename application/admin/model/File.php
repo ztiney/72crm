@@ -29,7 +29,7 @@ class File extends Common
 	 * @param     $x 裁剪图的长 ,$y 裁剪图的宽
 	 * @return    [array]                         
 	 */
-	public function createData($files, $param, $x = '150', $y = '150')
+	public function createData($files, $param = [], $x = '150', $y = '150')
 	{	
         if (empty($files)) {
 			$this->error = '请选择上传文件';
@@ -229,6 +229,10 @@ class File extends Common
 			$this->error = '参数错误';
 			return false;
 		}
+		$module_ids = $request['module_id'];
+		if (!is_array($request['module_id'])) {
+			$module_ids = array($request['module_id']);
+		}
 
 		switch ($request['module']) {
 			case 'crm_leads' : $r = db('crm_leads_file'); $module = db('crm_leads'); break;
@@ -248,7 +252,7 @@ class File extends Common
 			default : break;
 		}
 		if ($r) {
-			$fileIds = $r->where([$module->getPk() => intval ($request['module_id'])])->column('file_id');
+			$fileIds = $r->where([$module->getPk() => ['in',$module_ids]])->column('file_id');
 			$request['file_id'] = ['in', $fileIds];			
 		}
 		unset($request['module']);
@@ -376,4 +380,84 @@ class File extends Common
 		}
 		return true;
 	}
+
+
+	/**
+	 * 删除关系表附件
+	 * @author Michael_xu
+	 * @param  $module 模块
+	 * @param  $module_id 模块ID
+	 */	
+	public function delRFileByModule($module, $module_id)
+	{
+		if (in_array($module,$this->module_arr) && $module_id) {
+        	switch ($module) {
+        		case 'crm_leads' : 
+        			$r = db('crm_leads_file'); 
+        			$r_name = 'leads_id'; 
+        			break;
+        		case 'crm_customer' : 
+        			$r = db('crm_customer_file'); 
+        			$r_name = 'customer_id'; 
+        			break;
+        		case 'crm_contacts' : 
+        			$r = db('crm_contacts_file'); 
+        			$r_name = 'contacts_id'; 
+        			break;
+        		case 'crm_business' : 
+        			$r = db('crm_business_file'); 
+        			$r_name = 'business_id'; 
+        			break;
+        		case 'crm_product' : 
+        			$r = db('crm_product_file'); 
+        			$r_name = 'product_id'; 
+        			break;
+        		case 'crm_contract' : 
+        			$r = db('crm_contract_file'); 
+        			$r_name = 'contract_id'; 
+        			break;
+        		case 'oa_log' : 
+        			$r = db('oa_log_file'); 
+        			$r_name = 'log_id'; 
+        			break;
+        		case 'oa_examine' : 
+        			$r = db('oa_examine_file'); 
+        			$r_name = 'examine_id'; 
+        			break;
+        		case 'work_task' : 
+        			$r = db('work_task_file'); 
+        			$r_name = 'task_id'; 
+        			break;
+        		case 'admin_record' : 
+        			$r = db('admin_record_file'); 
+        			$r_name = 'record_id'; 
+        			break;
+        		case 'oa_travel' : 
+        			$r = db('oa_travel_file'); 
+        			$r_name = 'travel_id'; 
+        			break;
+				case 'hrm_pact' : 
+					$r = db('hrm_pact_file'); 
+					$r_name = 'pact_id'; 
+					break;
+				case 'hrm_file' : 
+					$r = db('hrm_user_file'); 
+					$r_name = 'user_id';
+					break;
+        		default : break;
+        	}
+        	$rWhere = [];
+        	$rWhere[$r_name] = intval ($param['module_id']);
+        	$rFileIds = $r->where($rWhere)->column('file_id');
+        	$rRes = $r->where($rWhere)->delete();
+        	if ($rRes && $rFileIds) {
+        		$fileList = db('admin_file')->where(['file_id' => ['in',$rFileIds]])->field('file_path,file_path_thumb')->select();
+        		foreach ($fileList as $v) {
+					//删除文件
+	            	@unlink($v['file_path']);
+	            	@unlink($v['file_path_thumb']);
+        		}		            		
+        	}
+        }		
+	}	
 }

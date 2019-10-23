@@ -30,7 +30,8 @@
                         value-format="yyyy-MM-dd HH:mm:ss"
                         :editable="false">
         </el-date-picker>
-        <el-checkbox v-model="is_event">添加到日程提醒</el-checkbox>
+        <el-checkbox v-if="showOAPermission"
+                     v-model="is_event">添加到日程提醒</el-checkbox>
         <el-button @click.native="sendInfo"
                    class="se-send"
                    type="primary">发布</el-button>
@@ -67,6 +68,7 @@ import TaskLog from '../../components/followLog/TaskLog' // 任务日志列表
 import ScheduleLog from '../../components/followLog/ScheduleLog' // 日程日志列表
 import { crmRecordSave, crmRecordIndex } from '@/api/customermanagement/common'
 import { formatTimeToTimestamp } from '@/utils'
+import followLogType from '@/views/customermanagement/mixins/followLogType'
 
 export default {
   /** 联系人管理 的 联系人详情 的 跟进记录*/
@@ -79,6 +81,7 @@ export default {
     TaskLog,
     ScheduleLog
   },
+  mixins: [followLogType],
   props: {
     /** 模块ID */
     id: [String, Number],
@@ -92,30 +95,28 @@ export default {
   data() {
     return {
       sendLoading: false,
-      followTypes: [
-        { type: '打电话', name: '打电话' },
-        { type: '发邮件', name: '发邮件' },
-        { type: '发短信', name: '发短信' },
-        { type: '见面拜访', name: '见面拜访' },
-        { type: '活动', name: '活动' }
-      ],
-      followType: '打电话',
       /** 下次联系时间 */
       next_time: '',
       /** 是否添加日程提醒 */
       is_event: false,
-      logType: 'record',
-      logTypes: [
-        // { type: 'all', name: '全部' },
-        { type: 'record', name: '跟进记录' },
-        { type: 'log', name: '日志' },
-        { type: 'examine', name: '审批' },
-        { type: 'task', name: '任务' },
-        { type: 'schedule', name: '日程' }
-      ]
+      logType: 'record'
     }
   },
   computed: {
+    logTypes() {
+      if (this.oa) {
+        return [
+          { type: 'record', name: '跟进记录' },
+          { type: 'log', name: '日志' },
+          { type: 'examine', name: '审批' },
+          { type: 'task', name: '任务' },
+          { type: 'schedule', name: '日程' }
+        ]
+      } else {
+        return [{ type: 'record', name: '跟进记录' }]
+      }
+    },
+
     componentsName() {
       if (this.logType == 'record') {
         return 'RecordLog'

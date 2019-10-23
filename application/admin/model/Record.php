@@ -62,6 +62,15 @@ class Record extends Common
 						$whereOr['types_id'] = $leads_id;
 					}
 				}
+				//联系人下包含关联的客户的跟进记录
+				if ($map['types'] == 'crm_contacts') {
+					$whereOr = [];
+					$whereOr['contacts_ids'] = array('like','%,'.$map['types_id'].',%');
+				}
+				if ($map['types'] == 'crm_business') {
+					$whereOr = [];
+					$whereOr['business_ids'] = array('like','%,'.$map['types_id'].',%');
+				}							
 				$list = db('admin_record')
 					->page($request['page'], $request['limit'])
 					->order('create_time desc')
@@ -296,7 +305,7 @@ class Record extends Common
 					//$userlist =$userModel->getDataByStr($value['owner_user_id']);
 					//$dataInfo['own_list'] = $userlist?$userlist: array(); 
 					//负责人信息
-					$dataInfo['main_user'] = $dataInfo['main_user_id'] ? $userModel->getDataById($dataInfo['main_user_id']) : array();
+					$dataInfo['main_user'] = $dataInfo['main_user_id'] ? $userModel->getUserById($dataInfo['main_user_id']) : array();
 					$dataInfo['relationCount'] = $taskModel->getRelationCount($dataInfo['task_id']);					
 					break;					
 				case '5' : 
@@ -304,7 +313,7 @@ class Record extends Common
 					$relation_list = $this->getListByRelationId('event', $v['id']);
 
 					$dataInfo = db('oa_event')->where(['event_id' => $v['id']])->find();
-					$dataInfo['create_user_info'] = $userModel->getDataById($dataInfo['create_user_id']);
+					$dataInfo['create_user_info'] = $userModel->getUserById($dataInfo['create_user_id']);
 					$dataInfo['ownerList'] = $userModel->getDataByStr($dataInfo['owner_user_ids']) ? : [];
 					$dataInfo['remindtype'] = (int)$dataInfo['remindtype'];
 					$noticeList = Db::name('OaEventNotice')->where('event_id = '.$dataInfo['event_id'])->find();
@@ -339,10 +348,10 @@ class Record extends Common
 			}
 			$dataInfo['fileList'] = $fileList ? : [];
 			$dataInfo['imgList'] = $imgList ? : [];
-			$dataInfo['customerList'] = $relation_list['customer_list'] ? : [];
-			$dataInfo['contactsList'] = $relation_list['contacts_list'] ? : [];
-			$dataInfo['businessList'] = $relation_list['business_list'] ? : [];
-			$dataInfo['contractList'] = $relation_list['contract_list'] ? : [];
+			$dataInfo['customerList'] = $relation_list['customerList'] ? : [];
+			$dataInfo['contactsList'] = $relation_list['contactsList'] ? : [];
+			$dataInfo['businessList'] = $relation_list['businessList'] ? : [];
+			$dataInfo['contractList'] = $relation_list['contractList'] ? : [];
 			$list[$k]['dataInfo'] = $dataInfo ? : [];
 		}
         $data = [];
@@ -377,9 +386,7 @@ class Record extends Common
 		unset($param['file_id']);
 		if ($this->data($param)->allowField(true)->save()) {
 			//下次联系时间
-			if ($param['next_time']) {
-				$this->updateNexttime($param['types'], $param['types_id'], $param['next_time']);
-			}
+			$this->updateNexttime($param['types'], $param['types_id'], $param['next_time']);
 
 			//处理附件关系
 	        if ($fileArr) {
@@ -407,15 +414,7 @@ class Record extends Common
 	public function getDataById($id = '')
 	{
 		$map['record_id'] = $id;
-		$data_view = $this
-					 ->where($map)
-				     ->alias('record')
-				     ->join('__CRM_BUSINESS__ business', 'business.business_id = record.business_id', 'LEFT')
-				     ->join('__CRM_CONTACTS__ contacts', 'contacts.contacts_id = record.contacts_id', 'LEFT');
-
-		$dataInfo = $data_view
-        		->field('record.*,business.name as business_name,contacts.name as contacts_name')
-        		->find();
+		$dataInfo = db('admin_record')->where($map)->find();
 		if (!$dataInfo) {
 			$this->error = '暂无此数据';
 			return false;
@@ -475,10 +474,10 @@ class Record extends Common
 			case 'record' : $data = db('admin_record')->where(['record_id' => $relation_id])->find(); break;
 			default : $data = []; break;
 		}
-		if ($data['customer_ids']) $data['customer_list'] = $CustomerModel->getDataByStr($data['customer_ids']) ? : [];
-		if ($data['contacts_ids']) $data['contacts_list'] = $ContactsModel->getDataByStr($data['contacts_ids']) ? : [];
-		if ($data['business_ids']) $data['business_list'] = $BusinessModel->getDataByStr($data['business_ids']) ? : [];
-		if ($data['contract_ids']) $data['contract_list'] = $ContractModel->getDataByStr($data['contract_ids']) ? : [];
+		$data['customerList'] = $data['customer_ids'] ? $CustomerModel->getDataByStr($data['customer_ids']) : [];
+		$data['contactsList'] = $data['contacts_ids'] ? $ContactsModel->getDataByStr($data['contacts_ids']) : [];
+		$data['businessList'] = $data['business_ids'] ? $BusinessModel->getDataByStr($data['business_ids']) : [];
+		$data['contractList'] = $data['contract_ids'] ? $ContractModel->getDataByStr($data['contract_ids']) : [];
 		return $data ? : [];
 	}
 
@@ -494,14 +493,41 @@ class Record extends Common
 			case 'crm_customer' : $dbName = db('crm_customer'); $dbId = 'customer_id'; break;
 			case 'crm_leads' : $dbName = db('crm_leads'); $dbId = 'leads_id'; break;
 			case 'crm_contacts' : $dbName = db('crm_contacts'); $dbId = 'contacts_id'; break;
-			case 'crm_contract' : $dbName = db('crm_contract'); $dbId = 'contract_id'; break;
 			case 'crm_business' : $dbName = db('crm_business'); $dbId = 'business_id'; break;
 			default : break;
 		}
+		if (!$dbName || !$dbId) {
+			return true;
+		}
 		$data = [];
-		$data['next_time'] = $next_time;
+		if ($next_time) {
+	      	$data['next_time'] = $next_time;
+	    } else {
+			// 如果未填写下次联系时间，并且 原下次联系时间为当天，则把下次联系时间置空
+			$next_time = $dbName->where([$dbId => $types_id])->value('next_time');
+			list($start, $end) = getTimeByType();
+			if ($next_time >= $start && $next_time <= $end) {
+				$data['next_time'] = 0;
+			}
+	    }
 		$data['update_time'] = time();
+		if (in_array($types,['crm_customer','crm_leads'])) $data['follow'] = '已跟进';
 		$dbName->where([$dbId => $types_id])->update($data);
 		return true;
 	}
+
+	/**
+	 * 跟进记录删除
+	 * @param types 类型
+	 * @param types 类型ID数组
+	 * @param 
+	 */ 
+	public function delDataByTypes($types, $types_id)
+	{
+		if (!is_array($types_id)) {
+			$types_id[] = $types_id;
+		}
+		$this->where(['types' => $types,'types_id' => ['in',$types_id]])->delete();
+		return true;
+	}	
 }

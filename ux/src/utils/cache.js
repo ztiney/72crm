@@ -13,15 +13,10 @@ const cache = {
       if (userInfo) {
         store.commit('SET_USERINFO', userInfo)
       }
-      const authList = Lockr.get('authList')
-      if (authList) {
-        store.commit('SET_CRM', authList.crm)
-        store.commit('SET_BI', authList.bi)
-        store.commit('SET_MANAGE', authList.manage)
-      }
     }
     store.commit('SET_APPNAME', Lockr.get('systemName'))
     store.commit('SET_APPLOGO', Lockr.get('systemLogo'))
+    store.dispatch('SystemLogoAndName')
   },
   /**
    * 请求和更新登录缓存
@@ -30,7 +25,6 @@ const cache = {
     axios.defaults.headers.authKey = Lockr.get('authKey')
     axios.defaults.headers.sessionId = Lockr.get('sessionId')
     store.dispatch("GetUserInfo")
-    store.dispatch('SystemLogoAndName')
   },
   /**
    * 移除登录信息

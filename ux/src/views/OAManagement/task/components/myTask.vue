@@ -117,7 +117,7 @@ export default {
     return {
       fromData: {
         type: '',
-        status: '',
+        status: '1',
         priority: 'all',
         time: '',
         subUser: ''
@@ -214,6 +214,7 @@ export default {
   flex: 1;
   display: flex;
   flex-direction: column;
+  overflow-y: hidden;
   .wukong {
     vertical-align: middle;
   }

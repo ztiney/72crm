@@ -69,23 +69,17 @@ export default {
   computed: {},
   mounted() {
     // 分批次加载
-    let self = this
-    let item = document.getElementById('follow-log-content')
-    item.onscroll = function() {
-      let scrollTop = item.scrollTop
-      let windowHeight = item.clientHeight
-      let scrollHeight = item.scrollHeight //滚动条到底部的条件
-
-      if (
-        scrollTop + windowHeight == scrollHeight &&
-        self.loadMoreLoading == true
-      ) {
-        if (!self.isPost) {
-          self.isPost = true
-          self.page++
-          self.getList()
+    let dom = document.getElementById('follow-log-content')
+    dom.onscroll = () => {
+      let scrollOff = dom.scrollTop + dom.clientHeight - dom.scrollHeight
+      //滚动条到底部的条件
+      if (Math.abs(scrollOff) < 10 && this.loadMoreLoading == true) {
+        if (!this.isPost) {
+          this.isPost = true
+          this.page++
+          this.getList()
         } else {
-          self.loadMoreLoading = false
+          this.loadMoreLoading = false
         }
       }
     }
@@ -105,6 +99,11 @@ export default {
         by: 'task' // 类型（record 跟进记录，log 日志、examine审批、task 任务、event日程、默认是全部）
       })
         .then(res => {
+          for (let item of res.data.list) {
+            if (item.dataInfo.status == 5) {
+              item.dataInfo.checked = true
+            }
+          }
           this.list = this.list.concat(res.data.list)
           if (res.data.list.length < 10) {
             this.loadMoreLoading = false

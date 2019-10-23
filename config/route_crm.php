@@ -13,7 +13,9 @@ return [
 
 	// 【仪表盘】销售简报
 	'crm/index/index' => ['crm/index/index', ['method' => 'POST']],    
-
+	'crm/index/indexList' => ['crm/index/indexList', ['method' => 'POST']], 
+	'crm/index/getRecordList' => ['crm/index/getRecordList', ['method' => 'POST']], 
+	
 	// 【客户】列表
 	'crm/customer/index' => ['crm/customer/index', ['method' => 'POST']],
 	// 【客户】创建
@@ -90,7 +92,13 @@ return [
 	// 【联系人】转移
 	'crm/contacts/transfer' => ['crm/contacts/transfer', ['method' => 'POST']],	
 	// 【联系人】删除
-	'crm/contacts/delete' => ['crm/contacts/delete', ['method' => 'POST']],						
+	'crm/contacts/delete' => ['crm/contacts/delete', ['method' => 'POST']],
+	// 【联系人】导出
+	'crm/contacts/excelExport' => ['crm/contacts/excelExport', ['method' => 'POST']],
+	// 【联系人】导入模板下载
+	'crm/contacts/excelDownload' => ['crm/contacts/excelDownload', ['method' => 'GET']],
+	// 【联系人】导入
+	'crm/contacts/excelImport' => ['crm/contacts/excelImport', ['method' => 'POST']],						
 
 	// 【商机】列表
 	'crm/business/index' => ['crm/business/index', ['method' => 'POST']],
@@ -145,7 +153,13 @@ return [
 	// 【产品】详情
 	'crm/product/read' => ['crm/product/read', ['method' => 'POST']],
 	// 【产品】上架/下架
-	'crm/product/status' => ['crm/product/status', ['method' => 'POST']],		
+	'crm/product/status' => ['crm/product/status', ['method' => 'POST']],
+	// 【产品】导出
+	'crm/product/excelExport' => ['crm/product/excelExport', ['method' => 'POST']],
+	// 【产品】导入模板下载
+	'crm/product/excelDownload' => ['crm/product/excelDownload', ['method' => 'GET']],
+	// 【产品】导入
+	'crm/product/excelImport' => ['crm/product/excelImport', ['method' => 'POST']],			
 
 	// 【回款】列表
 	'crm/receivables/index' => ['crm/receivables/index', ['method' => 'POST']],
@@ -167,13 +181,15 @@ return [
 	'crm/receivables/revokeCheck' => ['crm/receivables/revokeCheck', ['method' => 'POST']],		
 	
 	// 【回款计划】列表
-	'crm/receivablesPlan/index' => ['crm/receivablesPlan/index', ['method' => 'POST']],
+	'crm/receivables_plan/index' => ['crm/receivables_plan/index', ['method' => 'POST']],
 	// 【回款计划】创建
-	'crm/receivablesPlan/save' => ['crm/receivablesPlan/save', ['method' => 'POST']],	
+	'crm/receivables_plan/save' => ['crm/receivables_plan/save', ['method' => 'POST']],	
 	// 【回款计划】编辑
-	'crm/receivablesPlan/update' => ['crm/receivablesPlan/update', ['method' => 'POST']],	
+	'crm/receivables_plan/update' => ['crm/receivables_plan/update', ['method' => 'POST']],	
 	// 【回款计划】详情
-	'crm/receivablesPlan/read' => ['crm/receivablesPlan/read', ['method' => 'POST']],				
+	'crm/receivables_plan/read' => ['crm/receivables_plan/read', ['method' => 'POST']],	
+	// 【回款计划】删除
+	'crm/receivables_plan/delete' => ['crm/receivables_plan/delete', ['method' => 'POST']],				
 	
 	// 【相关团队】列表
 	'crm/setting/team' => ['crm/setting/team', ['method' => 'POST']],
@@ -182,7 +198,9 @@ return [
 	// 【客户保护规则】保存
 	'crm/setting/config' => ['crm/setting/config', ['method' => 'POST']],
 	// 【客户保护规则】详情
-	'crm/setting/configData' => ['crm/setting/configData', ['method' => 'POST']],			
+	'crm/setting/configData' => ['crm/setting/configData', ['method' => 'POST']],
+	// 【合同到期提醒】
+	'crm/setting/contractDay' => ['crm/setting/contractDay', ['method' => 'POST']],				
 
 	// 【商机状态组】列表
 	'crm/business_status/type' => ['crm/business_status/type', ['method' => 'POST']],
@@ -213,14 +231,64 @@ return [
 	'crm/achievement/datalist' => ['crm/achievement/datalist', ['method' => 'POST']],
 	'crm/achievement/indexForuser' => ['crm/achievement/indexForuser', ['method' => 'POST']],	
 
-	// 【工作台】销售简报
-	'crm/index/index' => ['crm/index/index', ['method' => 'POST']],	
 	// 【工作台】业绩指标
 	'crm/index/achievementData' => ['crm/index/achievementData', ['method' => 'POST']],
 	// 【工作台】销售漏斗
 	'crm/index/funnel' => ['crm/index/funnel', ['method' => 'POST']],
 	// 【工作台】销售趋势
-	'crm/index/saletrend' => ['crm/index/saletrend', ['method' => 'POST']],				
+	'crm/index/saletrend' => ['crm/index/saletrend', ['method' => 'POST']],	
+	// 【工作台】查重
+	'crm/index/search' => ['crm/index/search', ['method' => 'POST']],	
+
+	// 【代办事项】今日需联系
+	'crm/message/todayCustomer' => ['crm/message/todayCustomer', ['method' => 'POST']],				
+	'crm/message/num' => ['crm/message/num', ['method' => 'POST']],		
+	'crm/message/followleads' => ['crm/message/followleads', ['method' => 'POST']],				
+	'crm/message/followcustomer' => ['crm/message/followcustomer', ['method' => 'POST']],				
+	'crm/message/checkcontract' => ['crm/message/checkcontract', ['method' => 'POST']],				
+	'crm/message/checkreceivables' => ['crm/message/checkreceivables', ['method' => 'POST']],				
+	'crm/message/remindreceivablesplan' => ['crm/message/remindreceivablesplan', ['method' => 'POST']],				
+	'crm/message/endContract' => ['crm/message/endContract', ['method' => 'POST']],
+	'crm/message/remindCustomer' => ['crm/message/remindCustomer', ['method' => 'POST']],
+
+	// 【客户】标记跟进
+	'crm/customer/setFollow' => ['crm/customer/setFollow', ['method' => 'POST']],					
+	'crm/leads/setFollow' => ['crm/leads/setFollow', ['method' => 'POST']],	
+
+	// 【跟进记录类型设置】列表
+	'crm/setting/recordList' => ['crm/setting/recordList', ['method' => 'POST']],	
+	// 【跟进记录类型设置】记录类型编辑
+	'crm/setting/recordEdit' => ['crm/setting/recordEdit', ['method' => 'POST']],
+	// 【客户】联系人商机关联/取消关联
+	'crm/contacts/relation' => ['crm/contacts/relation', ['method' => 'POST']],	
+
+	// 【公海】数据统计 导出
+	'crm/customer/poolExcelExport' => ['crm/customer/poolExcelExport', ['method' => 'POST']],	
+
+
+	// 【跟进记录类型设置】列表
+	'crm/setting/recordList' => ['crm/setting/recordList', ['method' => 'POST']],	
+	// 【跟进记录类型设置】记录类型编辑
+	'crm/setting/recordEdit' => ['crm/setting/recordEdit', ['method' => 'POST']],
+	// 【客户】联系人商机关联/取消关联
+	'crm/contacts/relation' => ['crm/contacts/relation', ['method' => 'POST']],	
+
+	// 【公海】数据统计 导出
+	'crm/customer/poolExcelExport' => ['crm/customer/poolExcelExport', ['method' => 'POST']],	
+
+	// 【CRM设置】拥有、锁定客户数限制列表
+	'crm/setting/customerConfigList' => ['crm/setting/customerConfigList', ['method' => 'POST']],
+	// 【CRM设置】拥有、锁定客户数限制创建
+	'crm/setting/customerConfigSave' => ['crm/setting/customerConfigSave', ['method' => 'POST']],	
+	// 【CRM设置】拥有、锁定客户数限制编辑
+	'crm/setting/customerConfigUpdate' => ['crm/setting/customerConfigUpdate', ['method' => 'POST']],
+	// 【CRM设置】拥有、锁定客户数限制删除
+	'crm/setting/customerConfigDel' => ['crm/setting/customerConfigDel', ['method' => 'POST']],	
+
+	// 【客户成交】
+	'crm/customer/deal_status' => ['crm/customer/deal_status', ['method' => 'POST']],
+	// 【待进入客户池】
+	'crm/message/remindCustomer' => ['crm/message/remindCustomer', ['method' => 'POST']],					
 
 	// MISS路由
 	'__miss__'  => 'admin/base/miss',

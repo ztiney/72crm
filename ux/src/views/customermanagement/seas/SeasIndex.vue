@@ -5,6 +5,7 @@
                      @on-handle="listHeadHandle"
                      @on-search="crmSearch"
                      main-title="新建客户"
+                     @on-export="exportInfos"
                      :isSeas="true"
                      crm-type="customer">
     </c-r-m-list-head>
@@ -29,6 +30,7 @@
                 style="width: 100%"
                 :cell-style="cellStyle"
                 @row-click="handleRowClick"
+                @sort-change="sortChange"
                 @header-dragend="handleHeaderDragend"
                 @selection-change="handleSelectionChange">
         <el-table-column show-overflow-tooltip
@@ -38,6 +40,7 @@
         </el-table-column>
         <el-table-column v-for="(item, index) in fieldList"
                          :key="index"
+                         sortable="custom"
                          show-overflow-tooltip
                          :fixed="index==0"
                          :prop="item.prop"
@@ -108,7 +111,7 @@ export default {
   methods: {
     /** 通过回调控制style */
     cellStyle({ row, column, rowIndex, columnIndex }) {
-      if (columnIndex == 1) {
+      if (column.property === 'name') {
         return { color: '#3E84E9', cursor: 'pointer' }
       } else {
         return ''

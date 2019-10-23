@@ -28,6 +28,7 @@ class ReceivablesPlan extends Common
      * @param     [string]                   $map [查询条件]
      * @param     [number]                   $page     [当前页数]
      * @param     [number]                   $limit    [每页数量]
+     * @param     [string]                   $types    1 未使用的回款计划
      * @return    [array]                    [description]
      */		
 	public function getDataList($request)
@@ -36,9 +37,13 @@ class ReceivablesPlan extends Common
 		$search = $request['search'];
     	$user_id = $request['user_id'];
     	$scene_id = (int)$request['scene_id'];
+    	$check_status = $request['check_status'];
+    	$types = $request['types'];
 		unset($request['scene_id']);
 		unset($request['search']);
 		unset($request['user_id']);	    	
+		unset($request['check_status']);	    	
+		unset($request['types']);	    	
 
         $request = $this->fmtRequest( $request );
         $map = $request['map'] ? : [];
@@ -48,14 +53,53 @@ class ReceivablesPlan extends Common
 			unset($map['search']);
 		} else {
 			$map = where_arr($map, 'crm', 'receivables_plan', 'index'); //高级筛选
-		}		
-
-		$list = db('crm_receivables_plan')->alias('receivables_plan')->where($map)->page($request['page'], $request['limit'])->select();
-		$dataCount = db('crm_receivables_plan')->alias('receivables_plan')->where($map)->count('plan_id');
+		}
+		if ($map['receivables_plan.owner_user_id']) {
+			$map['contract.owner_user_id'] = $map['receivables_plan.owner_user_id'];
+			unset($map['receivables_plan.owner_user_id']);
+		}
+		$whereData = [];
+		if ($check_status) {
+			unset($map['receivables_plan.check_status']);
+			if ($check_status == 2) {
+				$map['receivables.check_status'] = $check_status;
+			} else {
+				unset($map['receivables_plan.receivables_id']);
+				$data = [];
+				$data['check_status'] = $check_status;
+				$whereData = function($query) use ($data){
+					        	$query->where(['receivables_plan.receivables_id'=> ['eq',0]])
+						        	->whereOr(['receivables.check_status' => $data['check_status']]);					
+								};
+			}
+		}
+		if ($types == 1) {
+			$map['receivables_plan.receivables_id']  = ['eq',0];
+		}
+		$list = db('crm_receivables_plan')
+				->alias('receivables_plan')
+				->join('__CRM_CONTRACT__ contract','receivables_plan.contract_id = contract.contract_id','LEFT')
+				->join('__CRM_CUSTOMER__ customer','receivables_plan.customer_id = customer.customer_id','LEFT')
+				->join('__CRM_RECEIVABLES__ receivables','receivables_plan.plan_id = receivables.plan_id','LEFT')
+				->limit(($request['page']-1)*$request['limit'], $request['limit'])
+				->field('receivables_plan.*,customer.name as customer_name,contract.num as contract_name,receivables.receivables_id,receivables.check_status')
+				->where($map)
+				->where($whereData)				
+				->select();
+		$dataCount = db('crm_receivables_plan')
+					->alias('receivables_plan')
+					->join('__CRM_CONTRACT__ contract','receivables_plan.contract_id = contract.contract_id','LEFT')
+					->join('__CRM_CUSTOMER__ customer','receivables_plan.customer_id = customer.customer_id','LEFT')
+					->join('__CRM_RECEIVABLES__ receivables','receivables_plan.plan_id = receivables.plan_id','LEFT')		
+					->where($map)
+					->where($whereData)	
+					->count('receivables_plan.plan_id');
         foreach ($list as $k=>$v) {
         	$list[$k]['create_user_id_info'] = $userModel->getUserById($v['create_user_id']);
-        	$list[$k]['contract_id_info'] = $v['contract_id'] ? db('crm_contract')->where(['contract_id' => $v['contract_id']])->field('contract_id,name')->find() : []; 
-        	$list[$k]['customer_id_info'] = $v['customer_id'] ? db('crm_customer')->where(['customer_id' => $v['customer_id']])->field('customer_id,name')->find() : [];  	
+        	$list[$k]['contract_id_info']['name'] = $v['contract_name'] ? : '';
+        	$list[$k]['contract_id_info']['contract_id'] = $v['contract_id'] ? : '';
+			$list[$k]['customer_id_info']['name'] = $v['customer_name'] ? : '';
+        	$list[$k]['customer_id_info']['customer_id'] = $v['customer_id'] ? : '';	
         }
         $data = [];
         $data['list'] = $list;
@@ -70,8 +114,7 @@ class ReceivablesPlan extends Common
 	 * @return                            
 	 */	
 	public function createData($param)
-	{
-		if (!$param['contract_id']) {
+	{		if (!$param['contract_id']) {
 			$this->error = '请先选择合同';
 		}
 		// 自动验证
@@ -84,7 +127,8 @@ class ReceivablesPlan extends Common
 		//期数规则（1,2,3..）
 		$maxNum = db('crm_receivables_plan')->where(['contract_id' => $param['contract_id']])->max('num');
 		$param['num'] = $maxNum ? $maxNum+1 : 1;
-
+		//提醒日期
+		$param['remind_date'] = $param['remind'] ? date('Y-m-d',strtotime($param['return_date'])-86400*$param['remind']) : $param['return_date'];
 		if ($this->data($param)->allowField(true)->save()) {
 			$data = [];
 			$data['plan_id'] = $this->plan_id;
@@ -122,7 +166,8 @@ class ReceivablesPlan extends Common
 			return false;
 		}
 		if ($param['file_ids']) $param['file'] = arrayToString($param['file_ids']); //附件
-
+		//提醒日期
+		$param['remind_date'] = $param['remind'] ? date('Y-m-d',strtotime($param['return_date'])-86400*$param['remind']) : $param['return_date'];		
 		if ($this->allowField(true)->save($param, ['plan_id' => $plan_id])) {
 			$data = [];
 			$data['plan_id'] = $plan_id;
@@ -164,7 +209,7 @@ class ReceivablesPlan extends Common
 			],
 			'1' => [
 				'field' => 'contract_id',
-				'name' => '合同编号',
+				'name' => '合同名称',
 				'form_type' => 'contract',
 				'setting' => []
 			],	
@@ -206,5 +251,5 @@ class ReceivablesPlan extends Common
 			]
 		];
 		return $field_arr;
-	}   	
+	} 	  	
 }

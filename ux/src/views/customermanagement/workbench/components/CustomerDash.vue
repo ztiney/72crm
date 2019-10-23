@@ -9,24 +9,15 @@
              style="height: 350px;">
           <flexbox class="mark-header"><img class="img-mark"
                  src="@/assets/img/jianbao.png" />销售简报</flexbox>
-          <el-select class="jianbaoSelect"
-                     v-model="jianbaoSelectValue"
-                     placeholder="请选择"
-                     @change="getCrmIndexIndex">
-            <el-option v-for="item in jianbaoOptions"
-                       :key="item.value"
-                       :label="item.name"
-                       :value="item.value">
-            </el-option>
-          </el-select>
-
           <flexbox :gutter="0"
                    wrap="wrap">
             <flexbox-item :span="1/2"
                           class="jianbao-icon-container"
                           v-for="(item, index) in jianbaoItems"
-                          :key="index">
-              <flexbox class="jianbao-icon-content">
+                          :key="index"
+                          @click.native="reportClick(item)">
+              <flexbox class="jianbao-icon-content"
+                       :style="{cursor: item.type ? 'pointer':'auto'}">
                 <img class="jianbao-icon"
                      :src="item.icon" />
                 <div class="jianbao-title">{{item.title}}</div>
@@ -45,24 +36,6 @@
           <flexbox class="mark-header"><img class="img-mark"
                  src="@/assets/img/zhibiao.png" />业绩指标</flexbox>
           <flexbox class="gaugeSelect">
-            <el-date-picker v-model="gaugeStartDate"
-                            style="width: 130px;margin-right: 15px;"
-                            type="month"
-                            value-format="yyyy-MM"
-                            :clearable="false"
-                            :picker-options="pickerOptions"
-                            placeholder="开始日期"
-                            @change="getCrmIndexAchievementData">
-            </el-date-picker>
-            <el-date-picker v-model="gaugeEndDate"
-                            style="width: 130px;margin-right: 15px;"
-                            type="month"
-                            value-format="yyyy-MM"
-                            :clearable="false"
-                            :picker-options="pickerOptions"
-                            placeholder="结束日期"
-                            @change="getCrmIndexAchievementData">
-            </el-date-picker>
             <el-select style="display: block;width: 100px;"
                        v-model="gaugeSelectValue"
                        placeholder="请选择"
@@ -102,17 +75,6 @@
                  src="@/assets/img/loudou.png" />销售漏斗
           </flexbox>
           <flexbox class="funnelSelect">
-            <el-date-picker v-model="dateSelect"
-                            type="daterange"
-                            :clearable="false"
-                            range-separator="-"
-                            format="yyyy-MM-dd"
-                            value-format="yyyy-MM-dd"
-                            :picker-options="pickerOptions"
-                            start-placeholder="开始日期"
-                            end-placeholder="结束日期"
-                            @change="getBusinessStatustatistics">
-            </el-date-picker>
             <el-select v-model="businessStatusValue"
                        placeholder="商机组"
                        @change="getBusinessStatustatistics">
@@ -138,35 +100,14 @@
              style="height: 400px;">
           <flexbox class="mark-header"><img class="img-mark"
                  src="@/assets/img/qushi.png" />销售趋势</flexbox>
-          <flexbox class="trendSelect">
-            <el-date-picker v-model="trendDateValue"
-                            style="width: 100px;margin-right: 15px;"
-                            type="year"
-                            :clearable="false"
-                            value-format="yyyy"
-                            :picker-options="pickerOptions"
-                            placeholder="选择年"
-                            @change="getCrmIndexSaletrend">
-            </el-date-picker>
-            <el-select v-model="trendSelectValue"
-                       style="width: 80px;"
-                       @change="getTrendAxisInfo"
-                       placeholder="请选择">
-              <el-option v-for="item in [{ label: '按月', value: '月' }, { label: '按季度', value: '季度' }]"
-                         :key="item.value"
-                         :label="item.label"
-                         :value="item.value">
-              </el-option>
-            </el-select>
-          </flexbox>
           <flexbox style="position: relative;">
             <div class="trend-target-item">
               <div class="name">合同金额</div>
-              <div class="value">{{trendData.contractMoneyTotal}}元</div>
+              <div class="value">{{trendData.totlaContractMoney}}元</div>
             </div>
             <div class="trend-target-item">
               <div class="name">回款金额</div>
-              <div class="value">{{trendData.receivablesMoneyTotal}}元</div>
+              <div class="value">{{trendData.totlaReceivablesMoney}}元</div>
             </div>
           </flexbox>
           <div class="trend-label">
@@ -182,11 +123,22 @@
               <div class="label-item-name">回款金额</div>
             </flexbox>
           </div>
-          <div id="axismain"
-               style="width: 480px;height:250px;"></div>
+          <div class="axismain-content">
+            <div id="axismain"></div>
+          </div>
         </div>
       </flexbox-item>
     </flexbox>
+
+    <!-- 销售简报列表 -->
+    <report-list v-if="showReportList"
+                 :title="reportData.title"
+                 :placeholder="reportData.placeholder"
+                 :crmType="reportData.crmType"
+                 :request="reportData.request"
+                 :params="reportData.params"
+                 :fieldList="fieldReportList"
+                 @hide="showReportList = false"></report-list>
   </div>
 </template>
 
@@ -196,22 +148,22 @@ import {
   crmIndexIndex,
   crmIndexAchievementData,
   crmIndexFunnel,
-  crmIndexSaletrend
+  crmIndexSaletrend,
+  crmIndexIndexListAPI
 } from '@/api/customermanagement/workbench'
 import { crmBusinessStatusList } from '@/api/customermanagement/business'
 import { formatTimeToTimestamp } from '@/utils'
 import moment from 'moment'
+import ReportList from './reportList'
 
 export default {
   /** 客户管理下的工作台-仪表盘 */
   name: 'customer-dash',
+  components: {
+    ReportList
+  },
   data() {
     return {
-      pickerOptions: {
-        disabledDate(time) {
-          return time.getTime() > Date.now()
-        }
-      },
       /** 销售简报 */
       jianbaoLoading: false,
       jianbaoItems: [
@@ -219,76 +171,74 @@ export default {
           title: '新增客户',
           icon: require('@/assets/img/c_curomer.png'),
           field: 'customerNum',
+          type: 'customer',
           value: 0
         },
         {
           title: '新增联系人',
           icon: require('@/assets/img/c_contact.png'),
           field: 'contactsNum',
+          type: 'contacts',
           value: 0
         },
         {
           title: '新增商机',
           icon: require('@/assets/img/c_business.png'),
           field: 'businessNum',
+          type: 'business',
           value: 0
         },
         {
           title: '阶段变化的商机',
           icon: require('@/assets/img/jd_business.png'),
           field: 'businessStatusNum',
+          type: 'business_status',
           value: 0
         },
         {
           title: '新增合同',
           icon: require('@/assets/img/c_contract.png'),
           field: 'contractNum',
+          type: 'contract',
           value: 0
         },
         {
           title: '新增跟进记录',
           icon: require('@/assets/img/c_log.png'),
           field: 'recordNum',
+          type: 'record',
           value: 0
         },
         {
           title: '新增回款',
           icon: require('@/assets/img/c_receivables.png'),
           field: 'receivablesNum',
+          type: 'receivables',
           value: 0
         }
       ],
-      jianbaoSelectValue: 'month',
-      jianbaoOptions: [
-        { name: '今天', value: 'today' },
-        { name: '昨天', value: 'yesterday' },
-        { name: '本周', value: 'week' },
-        { name: '上周', value: 'lastWeek' },
-        { name: '本月', value: 'month' },
-        { name: '上月', value: 'lastMonth' },
-        { name: '本季度', value: 'quarter' },
-        { name: '上季度', value: 'lastQuarter' },
-        { name: '本年', value: 'year' },
-        { name: '去年', value: 'lastYear' }
-      ],
+      showReportList: false,
+      fieldReportList: null,
+      reportData: {
+        title: '',
+        placeholder: '',
+        crmType: '',
+        request: null,
+        params: null
+      },
       /** 业绩指标 */
       gaugeLoading: false,
       gaugeSelectValue: 2,
-      gaugeStartDate: '',
-      gaugeEndDate: '',
       gaugeData: { contractMoney: 0, receivablesMoney: 0, achievementMoney: 0 },
       /** 销售漏斗 */
       /** 商机状态 */
       funnelLoading: false,
       businessOptions: [],
       businessStatusValue: '',
-      dateSelect: [], // 选择的date区间
       funnelData: { sum_ying: 0, sum_shu: 0 },
       /** 销售趋势 */
       trendLoading: false,
-      trendDateValue: '',
-      trendSelectValue: '月',
-      trendData: { contractMoneyTotal: 0, receivablesMoneyTotal: 0 },
+      trendData: { totlaContractMoney: 0, totlaReceivablesMoney: 0 },
       gaugeChart: null, // 指标图
       gaugeOption: null,
       funnelChart: null, // 漏斗图
@@ -316,14 +266,6 @@ export default {
     }
   },
   mounted() {
-    this.gaugeEndDate = moment(new Date()).format('YYYY-MM')
-    this.gaugeStartDate = this.gaugeEndDate.split('-')[0] + '-01'
-    this.trendDateValue = this.gaugeEndDate.split('-')[0]
-    var endDate = moment(new Date()).format('YYYY-MM-DD')
-    var times = endDate.split('-')
-    var startDate = times[0] + '-' + times[1] + '-01'
-    this.dateSelect = [startDate, endDate]
-
     this.initGauge()
     this.initFunnel()
     this.initAxis()
@@ -340,7 +282,6 @@ export default {
     getCrmIndexIndex() {
       this.jianbaoLoading = true
       var params = this.getBaseParams()
-      params.type = this.jianbaoSelectValue
       crmIndexIndex(params)
         .then(res => {
           for (let index = 0; index < this.jianbaoItems.length; index++) {
@@ -355,8 +296,46 @@ export default {
           this.jianbaoLoading = false
         })
     },
+
+    /**
+     * 销售简报查看
+     */
+    reportClick(item) {
+      if (item.type) {
+        this.reportData.title = `销售简报-${item.title}`
+        this.reportData.placeholder = {
+          customer: '请输入客户名称/手机/电话',
+          contacts: '请输入联系人姓名/手机/电话',
+          business: '请输入商机名称',
+          business_status: '请输入商机名称',
+          contract: '请输入合同名称',
+          receivables: '请输入回款编号',
+          record: ''
+        }[item.type]
+        if (item.type == 'record') {
+          this.fieldReportList = [
+            {
+              label: '模块',
+              prop: 'types',
+              width: 300
+            },
+            {
+              label: '新增跟进记录数',
+              prop: 'dataCount'
+            }
+          ]
+        } else {
+          this.fieldReportList = null
+        }
+        this.reportData.crmType = item.type
+        this.reportData.request = crmIndexIndexListAPI
+        this.reportData.params = this.getBaseParams()
+        this.showReportList = true
+      }
+    },
+
     getBaseParams() {
-      return {
+      let params = {
         user_id: this.data.users.map(function(item, index, array) {
           return item.id
         }),
@@ -364,14 +343,22 @@ export default {
           return item.id
         })
       }
+
+      if (this.data.timeTypeValue.type) {
+        if (this.data.timeTypeValue.type == 'custom') {
+          params.start_time = this.data.timeTypeValue.startTime
+          params.end_time = this.data.timeTypeValue.endTime
+        } else {
+          params.type = this.data.timeTypeValue.value || ''
+        }
+      }
+      return params
     },
     /** 指标图 */
     // 销售简报
     getCrmIndexAchievementData() {
       this.gaugeLoading = true
       var params = this.getBaseParams()
-      params.start_time = formatTimeToTimestamp(this.gaugeStartDate)
-      params.end_time = formatTimeToTimestamp(this.gaugeEndDate)
       params.status = this.gaugeSelectValue
       crmIndexAchievementData(params)
         .then(res => {
@@ -452,8 +439,6 @@ export default {
       if (this.businessStatusValue) {
         this.funnelLoading = true
         var params = this.getBaseParams()
-        params.start_time = formatTimeToTimestamp(this.dateSelect[0])
-        params.end_time = formatTimeToTimestamp(this.dateSelect[1])
         params.type_id = this.businessStatusValue
         crmIndexFunnel(params)
           .then(res => {
@@ -480,9 +465,7 @@ export default {
       }
     },
     initFunnel() {
-      var funnelChart = echarts.init(
-        document.getElementById('funnelmain')
-      )
+      var funnelChart = echarts.init(document.getElementById('funnelmain'))
       var option = {
         tooltip: {
           trigger: 'item',
@@ -554,61 +537,30 @@ export default {
     getCrmIndexSaletrend() {
       this.trendLoading = true
       var params = this.getBaseParams()
-      params.year = this.trendDateValue
       crmIndexSaletrend(params)
         .then(res => {
           this.trendData = res.data
-          this.getTrendAxisInfo()
+          let list = res.data.list || []
+          let contractList = []
+          let receivablesList = []
+          let xAxisData = []
+          for (let index = 0; index < list.length; index++) {
+            const element = list[index]
+            contractList.push(element.contractMoney)
+            receivablesList.push(element.receivablesMoney)
+            xAxisData.push(element.type)
+          }
+
+          this.axisOption.xAxis[0].data = xAxisData
+          this.axisOption.series[0].data = contractList
+          this.axisOption.series[1].data = receivablesList
+
+          this.axisChart.setOption(this.axisOption, true)
           this.trendLoading = false
         })
         .catch(() => {
           this.trendLoading = false
         })
-    },
-    getTrendAxisInfo() {
-      if (this.trendData && this.trendData.charMonthArr) {
-        let contractList = []
-        let receivablesList = []
-        if (this.trendSelectValue == '月') {
-          this.axisOption.xAxis[0].data = [
-            '1月',
-            '2月',
-            '3月',
-            '4月',
-            '5月',
-            '6月',
-            '7月',
-            '8月',
-            '9月',
-            '10月',
-            '11月',
-            '12月'
-          ]
-          for (let key in this.trendData.charMonthArr) {
-            const element = this.trendData.charMonthArr[key]
-            contractList.push(element.contractMoney)
-            receivablesList.push(element.receivablesMoney)
-          }
-        } else {
-          this.axisOption.xAxis[0].data = [
-            '一季度',
-            '二季度',
-            '三季度',
-            '四季度'
-          ]
-          for (let key in this.trendData.charQuarterArr) {
-            const element = this.trendData.charQuarterArr[key]
-            contractList.push(element.conQuarterMoney)
-            receivablesList.push(element.reQuarterMoney)
-          }
-        }
-
-        this.axisOption.series[0].data = contractList
-        this.axisOption.series[1].data = receivablesList
-        this.axisChart.setOption(this.axisOption, true)
-      } else {
-        this.getCrmIndexSaletrend()
-      }
     },
     initAxis() {
       var axisChart = echarts.init(document.getElementById('axismain'))
@@ -633,20 +585,7 @@ export default {
         xAxis: [
           {
             type: 'category',
-            data: [
-              '1月',
-              '2月',
-              '3月',
-              '4月',
-              '5月',
-              '6月',
-              '7月',
-              '8月',
-              '9月',
-              '10月',
-              '11月',
-              '12月'
-            ],
+            data: [],
             axisTick: {
               alignWithLabel: true,
               lineStyle: { width: 0 }
@@ -687,14 +626,14 @@ export default {
             name: '合同金额',
             type: 'bar',
             stack: 'one',
-            barWidth: '60%',
+            barWidth: 10,
             data: []
           },
           {
             name: '回款金额',
             type: 'bar',
             stack: 'one',
-            barWidth: '60%',
+            barWidth: 10,
             data: []
           }
         ]
@@ -736,7 +675,6 @@ export default {
   padding: 8px 8px;
   background-color: #f2f2f5;
   border-radius: 3px;
-  // cursor: pointer;
   .jianbao-icon {
     display: block;
     width: 23px;
@@ -863,11 +801,12 @@ export default {
   }
 }
 
-.trendSelect {
-  position: absolute;
-  top: 15px;
-  right: 20px;
-  width: auto;
+.axismain-content {
+  padding: 0 10px;
+  #axismain {
+    width: 100%;
+    height: 250px;
+  }
 }
 </style>
 

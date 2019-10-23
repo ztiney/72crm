@@ -2,23 +2,27 @@
 import {
   mapGetters
 } from 'vuex'
+import Lockr from 'lockr'
 import CRMListHead from '../components/CRMListHead'
 import CRMTableHead from '../components/CRMTableHead'
 import FieldsSet from '../components/fieldsManager/FieldsSet'
 import {
   filedGetField,
-  crmSceneIndex,
   crmFieldColumnWidth
 } from '@/api/customermanagement/common'
 import {
-  crmLeadsIndex
+  crmLeadsIndex,
+  crmLeadsExcelExport
 } from '@/api/customermanagement/clue'
 import {
   crmCustomerIndex,
-  crmCustomerPool
+  crmCustomerPool,
+  crmCustomerExcelExport,
+  crmCustomerPoolExcelExportAPI
 } from '@/api/customermanagement/customer'
 import {
-  crmContactsIndex
+  crmContactsIndex,
+  crmContactsExcelExport
 } from '@/api/customermanagement/contacts'
 import {
   crmBusinessIndex
@@ -27,7 +31,8 @@ import {
   crmContractIndex
 } from '@/api/customermanagement/contract'
 import {
-  crmProductIndex
+  crmProductIndex,
+  crmProductExcelExport
 } from '@/api/customermanagement/product'
 import {
   crmReceivablesIndex
@@ -36,6 +41,7 @@ import {
   getDateFromTimestamp
 } from '@/utils'
 import moment from 'moment'
+import { Loading } from 'element-ui'
 
 export default {
   components: {
@@ -43,15 +49,17 @@ export default {
     CRMTableHead,
     FieldsSet
   },
+
   data() {
     return {
       loading: false, // 加载动画
       tableHeight: document.documentElement.clientHeight - 240, // 表的高度
       list: [],
       fieldList: [],
+      sortData: {}, // 字段排序
       currentPage: 1,
-      pageSize: 15,
-      pageSizes: [15, 30, 45, 60],
+      pageSize: Lockr.get('crmPageSizes') || 15,
+      pageSizes: [15, 30, 60, 100],
       total: 0,
       search: '', // 搜索内容
       /** 控制详情展示 */
@@ -83,9 +91,7 @@ export default {
       var removeHeight = Object.keys(self.filterObj).length > 0 ? 310 : 240
       self.tableHeight = offsetHei - removeHeight
     }
-    // document.getElementById('crm-table').addEventListener('click', e => {
-    //   e.stopPropagation()
-    // })
+
     if (this.crm[this.crmType].index) {
       if (this.isSeas) {
         this.getFieldList()
@@ -108,6 +114,11 @@ export default {
       if (this.scene_id) {
         params.scene_id = this.scene_id
       }
+
+      if (this.sortData.order) {
+        params.order_field = this.sortData.prop
+        params.order_type = this.sortData.order == "ascending" ? 'asc' : 'desc'
+      }
       for (var key in this.filterObj) {
         params[key] = this.filterObj[key]
       }
@@ -119,6 +130,10 @@ export default {
               return element
             })
           } else {
+            if (this.crmType === 'contract') {
+              // 合同列表展示金额信息
+              this.moneyData = res.data.data
+            }
             this.list = res.data.list
           }
 
@@ -239,7 +254,7 @@ export default {
                   type: 'crm',
                   formatter: fieldFormatter
                 }
-              } else if (element.field === 'status_id' || element.field === 'type_id' || element.field === 'category_id') {
+              } else if (element.field === 'status_id' || element.field === 'type_id' || element.field === 'category_id' || element.field === 'plan_id') {
                 function fieldFormatter(info) {
                   return info ? info : ''
                 }
@@ -286,15 +301,15 @@ export default {
       if (aRules) {
         if (aRules.type === 'crm') {
           if (column.property) {
-            return aRules.formatter(row[column.property + '_info'])
+            return aRules.formatter(row[column.property + '_info']) || '--'
           } else {
             return ''
           }
         } else {
-          return aRules.formatter(row[column.property])
+          return aRules.formatter(row[column.property]) || '--'
         }
       }
-      return row[column.property]
+      return row[column.property] || '--'
     },
     /** */
     /** */
@@ -312,64 +327,142 @@ export default {
         return // 多选布局不能点击
       }
       if (this.crmType === 'leads') {
-        this.rowID = row.leads_id
-        this.showDview = true
+        if (column.property === 'name') {
+          this.rowID = row.leads_id
+          this.showDview = true
+        } else {
+          this.showDview = false
+        }
       } else if (this.crmType === 'customer') {
         if (column.property === 'business-check' && row.business_count > 0) {
           return // 列表查看商机不展示详情
         }
-        this.rowID = row.customer_id
-        this.rowType = 'customer'
-        this.showDview = true
+        if (column.property === 'name') {
+          this.rowID = row.customer_id
+          this.rowType = 'customer'
+          this.showDview = true
+        } else {
+          this.showDview = false
+        }
       } else if (this.crmType === 'contacts') {
         if (column.property === 'customer_id') {
           this.rowID = row.customer_id_info.customer_id
           this.rowType = 'customer'
-        } else {
+          this.showDview = true
+        } else if (column.property === 'name') {
           this.rowID = row.contacts_id
           this.rowType = 'contacts'
+          this.showDview = true
+        } else {
+          this.showDview = false
         }
-        this.showDview = true
       } else if (this.crmType === 'business') {
         if (column.property === 'customer_id') {
           this.rowID = row.customer_id_info.customer_id
           this.rowType = 'customer'
-        } else {
+          this.showDview = true
+        } else if (column.property === 'name') {
           this.rowID = row.business_id
           this.rowType = 'business'
+          this.showDview = true
+        } else {
+          this.showDview = false
         }
-        this.showDview = true
       } else if (this.crmType === 'contract') {
         if (column.property === 'customer_id') {
           this.rowID = row.customer_id_info.customer_id
           this.rowType = 'customer'
+          this.showDview = true
         } else if (column.property === 'business_id') {
           this.rowID = row.business_id_info.business_id
           this.rowType = 'business'
+          this.showDview = true
         } else if (column.property === 'contacts_id') {
           this.rowID = row.contacts_id_info.contacts_id
           this.rowType = 'contacts'
-        } else {
+          this.showDview = true
+        } else if (column.property === 'num') {
           this.rowID = row.contract_id
           this.rowType = 'contract'
+          this.showDview = true
+        } else {
+          this.showDview = false
         }
-        this.showDview = true
       } else if (this.crmType === 'product') {
-        this.rowID = row.product_id
-        this.showDview = true
+        if (column.property === 'name') {
+          this.rowID = row.product_id
+          this.showDview = true
+        } else {
+          this.showDview = false
+        }
       } else if (this.crmType === 'receivables') {
         if (column.property === 'customer_id') {
           this.rowID = row.customer_id_info.customer_id
           this.rowType = 'customer'
+          this.showDview = true
         } else if (column.property === 'contract_id') {
           this.rowID = row.contract_id
           this.rowType = 'contract'
-        } else {
+          this.showDview = true
+        } else if (column.property === 'number') {
           this.rowID = row.receivables_id
           this.rowType = 'receivables'
+          this.showDview = true
+        } else {
+          this.showDview = false
         }
-        this.showDview = true
       }
+    },
+    /**
+     * 导出 线索 客户 联系人 产品
+     * @param {*} data 
+     */
+    // 导出操作
+    exportInfos() {
+      var params = {
+        search: this.search
+      }
+      if (this.scene_id) {
+        params.scene_id = this.scene_id
+      }
+      for (var key in this.filterObj) {
+        params[key] = this.filterObj[key]
+      }
+
+      let request
+      // 公海的请求
+      if (this.isSeas) {
+        request = crmCustomerPoolExcelExportAPI
+      } else {
+        request = {
+          customer: crmCustomerExcelExport,
+          leads: crmLeadsExcelExport,
+          contacts: crmContactsExcelExport,
+          product: crmProductExcelExport
+        }[this.crmType]
+      }
+      let loading = Loading.service({ fullscreen: true, text: '导出中...' })
+      request(params)
+        .then(res => {
+          var blob = new Blob([res.data], {
+            type: 'application/vnd.ms-excel;charset=utf-8'
+          })
+          var downloadElement = document.createElement('a')
+          var href = window.URL.createObjectURL(blob) //创建下载的链接
+          downloadElement.href = href
+          downloadElement.download =
+            decodeURI(
+              res.headers['content-disposition'].split('filename=')[1]
+            ) || '' //下载后文件名
+          document.body.appendChild(downloadElement)
+          downloadElement.click() //点击下载
+          document.body.removeChild(downloadElement) //下载完成移除元素
+          window.URL.revokeObjectURL(href) //释放掉blob对象
+          loading.close()
+        })
+        .catch(() => {
+          loading.close()
+        })
     },
     /** 筛选操作 */
     handleFilter(data) {
@@ -377,6 +470,7 @@ export default {
       var offsetHei = document.documentElement.clientHeight
       var removeHeight = Object.keys(this.filterObj).length > 0 ? 310 : 240
       this.tableHeight = offsetHei - removeHeight
+      this.currentPage = 1
       this.getList()
     },
     /** 场景操作 */
@@ -388,10 +482,13 @@ export default {
     },
     /** 勾选操作 */
     handleHandle(data) {
-      if (data.type === 'alloc' || data.type === 'get' || data.type === 'transfer' || data.type === 'transform' || data.type === 'delete') {
+      if (data.type === 'alloc' || data.type === 'get' || data.type === 'transfer' || data.type === 'transform' || data.type === 'delete' || data.type === 'put_seas') {
         this.showDview = false
       }
-      this.getList()
+
+      if (data.type !== 'edit') {
+        this.getList()
+      }
     },
     /** 自定义字段管理 */
     setSave() {
@@ -411,6 +508,14 @@ export default {
     handleTableSet() {
       this.showFieldSet = true
     },
+    /**
+     * 字段排序
+     */
+    sortChange(column, prop, order) {
+      this.sortData = column
+      this.getList()
+    },
+
     /** 勾选操作 */
     // 当选择项发生变化时会触发该事件
     handleSelectionChange(val) {
@@ -422,21 +527,18 @@ export default {
       if (column.property) {
         const crmType = this.isSeas ? this.crmType + '_pool' : this.crmType
         crmFieldColumnWidth({
-            types: 'crm_' + crmType,
-            field: column.property,
-            width: newWidth
-          })
+          types: 'crm_' + crmType,
+          field: column.property,
+          width: newWidth
+        })
           .then(res => {
-            this.$message({
-              type: 'success',
-              message: res.data
-            })
           })
-          .catch(() => {})
+          .catch(() => { })
       }
     },
     // 更改每页展示数量
     handleSizeChange(val) {
+      Lockr.set('crmPageSizes', val)
       this.pageSize = val
       this.getList()
     },
@@ -445,7 +547,7 @@ export default {
       this.currentPage = val
       this.getList()
     },
-    // 0待审核、1审核中、2审核通过、3审核未通过
+    // 0待审核、1审核中、2审核通过、3已拒绝 4已撤回 5未提交
     getStatusStyle(status) {
       if (status == 0) {
         return {
@@ -471,9 +573,19 @@ export default {
           'background-color': '#FEF0F0',
           'color': '#F56C6B'
         }
+      } else if (status == 4 || status == 5) {
+        return {
+          'background-color': '#FFFFFF'
+        }
       }
+    },
+    getStatusName(status) {
+      if (status > 5) {
+        return ''
+      }
+      return ['待审核', '审核中', '审核通过', '已拒绝', '已撤回', '未提交'][status]
     }
   },
 
-  beforeDestroy() {}
+  beforeDestroy() { }
 }

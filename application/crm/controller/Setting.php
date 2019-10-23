@@ -23,23 +23,14 @@ class Setting extends ApiCommon
     {
         $action = [
             'permission'=>[''],
-            'allow'=>['config','configdata','team','teamsave']            
+            'allow'=>['config','configdata','team','teamsave','contractday','recordlist','recordedit','customerconfiglist','customerconfigsave','customerconfigupdate','customerconfigdelete']            
         ];
         Hook::listen('check_auth',$action);
         $request = Request::instance();
         $a = strtolower($request->action());        
         if (!in_array($a, $action['permission'])) {
             parent::_initialize();
-        }
-
-        $userInfo = $this->userInfo;
-        //权限判断
-        $unAction = ['team','teamsave'];
-        $adminTypes = adminGroupTypes($userInfo['id']);
-        if (!in_array(6,$adminTypes) && !in_array(1,$adminTypes) && !in_array(2,$adminTypes) && !in_array($a, $unAction)) {
-            header('Content-Type:application/json; charset=utf-8');
-            exit(json_encode(['code'=>102,'error'=>'无权操作']));
-        }        
+        }       
     } 
 
     /**
@@ -49,6 +40,11 @@ class Setting extends ApiCommon
      */
     public function config()
     {
+        //权限判断
+        if (!checkPerByAction('admin', 'crm', 'pool')) {
+            header('Content-Type:application/json; charset=utf-8');
+            exit(json_encode(['code'=>102,'error'=>'无权操作']));
+        }         
     	$configModel = model('ConfigData');
 		$param = $this->param;
         if ((int)$param['follow_day'] > (int)$param['deal_day']) {
@@ -213,5 +209,158 @@ class Setting extends ApiCommon
         } else {
             return resultArray(['data' => '保存成功']);
         }
-    }     
+    } 
+
+    /**
+     * 合同到期提醒天数
+     * @author Michael_xu
+     * @param 
+     * @return 
+     */
+    public function contractDay()
+    {
+        //权限判断
+        if (!checkPerByAction('admin', 'crm', 'setting')) {
+            header('Content-Type:application/json; charset=utf-8');
+            exit(json_encode(['code'=>102,'error'=>'无权操作']));
+        }        
+        $param = $this->param;
+        $data = [];
+        $contract_day = $param['contract_day'] ? intval($param['contract_day']) : 0; 
+        $contract_config = $param['contract_config'] ? intval($param['contract_config']) : 0;
+        $res = db('crm_config')->where(['name' => 'contract_config'])->update(['value' => $contract_config]);
+        if ($contract_day && $contract_config == 1) $res = db('crm_config')->where(['name' => 'contract_day'])->update(['value' => $contract_day]);
+        return resultArray(['data' => '设置成功']);        
+    }
+
+    /**
+     * 记录类型编辑
+     * @author zhi
+     * @return
+     */
+    public function recordEdit()
+    {
+        $param = $this->param;
+        //权限判断
+        if (!checkPerByAction('admin', 'crm', 'setting')) {
+            header('Content-Type:application/json; charset=utf-8');
+            exit(json_encode(['code'=>102,'error'=>'无权操作']));
+        }
+        if ($param['value']) {
+            $array = json_encode($param['value']);
+            $record_type = db('crm_config')->where(['name' => 'record_type'])->find();
+            if($record_type){
+                $res = db('crm_config')->where(['name' => 'record_type'])->update(['value' => $array]);
+            }else{
+                $data = array();
+                $data['name'] = 'record_type';
+                $data['value'] = $array;
+                $data['description'] = '跟进记录类型';
+                $res = db('crm_config')->insert($data);
+            }            
+            if ($res) {
+                return resultArray(['data' => '设置成功']);
+            } else {
+                return resultArray(['error' => '设置失败，请重试！']);
+            }
+        } else {
+            $record_type = db('crm_config')->where(['name' => 'record_type'])->find();
+            $record_type['value'] = json_decode($record_type['value']);
+            return resultArray(['data' => $record_type]);
+        }
+    }
+   
+    /**
+     * 跟进记录 记录方式展示
+     * @author zhi
+     * @return 
+     */
+    public function recordList()
+    {
+        $record_type = db('crm_config')->where(['name' => 'record_type'])->find();
+        if ($record_type) {
+            $arr = json_decode($record_type['value']);
+            return resultArray(['data' => $arr]);
+        } else {
+            return resultArray(['data' => array()]);
+        }
+    }
+
+    /**
+     * 拥有、锁定客户数限制列表
+     * @author Michael_xu
+     * @param types 1拥有客户上限2锁定客户上限
+     * @return 
+     */
+    public function customerConfigList()
+    {
+        $param = $this->param;
+        $param['types'] = $param['types'] ? : 1;
+        $customerConfigModel = new \app\crm\model\CustomerConfig();
+        $data = $customerConfigModel->getDataList($param);
+        return resultArray(['data' => $data]);
+    } 
+
+    /**
+     * 拥有、锁定客户数限制 创建
+     * @author Michael_xu
+     * @return 
+     */
+    public function customerConfigSave()
+    {
+        //权限判断
+        if (!checkPerByAction('admin', 'crm', 'setting')) {
+            header('Content-Type:application/json; charset=utf-8');
+            exit(json_encode(['code'=>102,'error'=>'无权操作']));
+        }        
+        $param = $this->param;
+        $customerConfigModel = new \app\crm\model\CustomerConfig();
+        $res = $customerConfigModel->createData($param);
+        if (!$res) {
+            return resultArray(['error' => $customerConfigModel->getError()]);
+        }
+        return resultArray(['data' => '创建成功']);
+    } 
+
+    /**
+     * 拥有、锁定客户数限制 编辑
+     * @author Michael_xu
+     * @return 
+     */
+    public function customerConfigUpdate()
+    {
+        //权限判断
+        if (!checkPerByAction('admin', 'crm', 'setting')) {
+            header('Content-Type:application/json; charset=utf-8');
+            exit(json_encode(['code'=>102,'error'=>'无权操作']));
+        }        
+        $param = $this->param;
+        $customerConfigModel = new \app\crm\model\CustomerConfig();
+        $res = $customerConfigModel->updateDataById($param,$param['id']);
+        if (!$res) {
+            return resultArray(['error' => $customerConfigModel->getError()]);
+        }
+        return resultArray(['data' => '编辑成功']);
+    } 
+
+    /**
+     * 拥有、锁定客户数限制 删除
+     * @author Michael_xu
+     * @return 
+     */
+    public function customerConfigDel()
+    {
+        //权限判断
+        if (!checkPerByAction('admin', 'crm', 'setting')) {
+            header('Content-Type:application/json; charset=utf-8');
+            exit(json_encode(['code'=>102,'error'=>'无权操作']));
+        }        
+        $param = $this->param;
+        $customerConfigModel = new \app\crm\model\CustomerConfig();
+        $res = $customerConfigModel->delDataById($param['id']);
+        if (!$res) {
+            return resultArray(['error' => $customerConfigModel->getError()]);
+        }
+        return resultArray(['data' => '删除成功']);
+    }             
 }

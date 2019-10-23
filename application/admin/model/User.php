@@ -69,6 +69,9 @@ class User extends Common
 		//角色员工
 		if ($map['group_id']) {
 			$group_user_ids = db('admin_access')->where(['group_id' => $map['group_id']])->column('user_id');
+			if ($map['group_id'] == 1 && !$group_user_ids) {
+				$group_user_ids = ['1'];
+			}			
 			$map['user.id'] = array('in',$group_user_ids);
 		}
 		$exp = new \think\db\Expression('field(user.status,1,2,0)');
@@ -81,7 +84,7 @@ class User extends Common
 			$map['user.structure_id'] = ['in',$new_str_ids]; //$map['structure_id'];
 		}
 		unset($map['structure_id']);
-		if ($map['status']) {
+		if ($map['status'] || $map['group_id']) {
 			$map['user.status'] = ($map['status'] !== 'all') ? ($map['status'] ? : ['gt',0]) : ['egt',0];
 		} else {
 			$map['user.status'] = 0;
@@ -104,7 +107,7 @@ class User extends Common
 				->alias('user')
 				->join('__ADMIN_STRUCTURE__ structure', 'structure.id = user.structure_id', 'LEFT')
 				->join('HrmUserDet hud','hud.user_id = user.id','LEFT')
-				->page( $request['page'], $request['limit'])
+				->limit(($request['page']-1)*$request['limit'], $request['limit'])
 				->where($map)
 				->field('user.id,user.username,user.img,user.thumb_img,user.realname,user.num,user.email,user.mobile,user.sex,user.structure_id,user.post,user.status,user.parent_id,user.type,user.create_time,structure.name as s_name')
 				->order($exp)
@@ -119,8 +122,8 @@ class User extends Common
 			$list[$k]['status_name'] = $v['status'] ? $this->statusArr[$v['status']] : '停用';
 			//角色
 			$groupsArr = $this->get($v['id'])->groups;
-			$groups = '';
-			$groupids = '';
+			$groups = [];
+			$groupids = [];
 			foreach ($groupsArr as $key=>$val) {
 				$groups[] = $val['title'];
 				$groupids[] = $val['id'];
@@ -166,6 +169,7 @@ class User extends Common
 			return false;
 		}
 		unset($data['password']);
+		unset($data['authkey']);
 
 		if($data['structure_id']) {
 			$structureDet = Db::name('AdminStructure')->field('id,name')->where('id = '.$data['structure_id'].'')->find();
@@ -284,14 +288,14 @@ class User extends Common
 			//修改个人信息
 			$data['email'] = $param['email'];
 			$data['sex'] = $param['sex'];
-			$data['mobile'] = $param['username'];
+			// $data['mobile'] = $param['username'];
 			if (db('admin_user')->where(['username' => $param['username'],'id' => ['neq',$param['user_id']]])->find()) {
 				$this->error = '手机号已存在';
 				return false;				
 			}
 			Db::name('HrmUserDet')->where(['user_id' => $param['user_id']])->update($data);
 			$data['realname'] = $param['realname'];
-			$data['username'] = $param['username'];
+			// $data['username'] = $param['username'];
 			$flag = $this->where(['id' => $param['user_id']])->update($data);
 			if ($flag) {
 				return true;
@@ -315,15 +319,20 @@ class User extends Common
 				$this->error = '请至少勾选一个用户组';
 				return false;
 			}
-			if ($param['parent_id'] == $id) {
-				$this->error = '直属上级不能是当前人';
+			$subUserId = getSubUserId(true, 0, $id);
+			if ((int)$param['parent_id'] == (int)$id) {
+				$this->error = '直属上级不能是自己';
+				return false;				
+			}
+			if ((int)$param['parent_id'] !== 1 && in_array($param['parent_id'],$subUserId)) {
+				$this->error = '直属上级不能是自己或下属';
 				return false;
 			}
 			if (db('admin_user')->where(['id' => ['neq',$id],'username' => $param['username']])->find()) {
 				$this->error = '手机号已存在';
 				return false;			
 			}
-
+			
 			$this->startTrans();
 			try {
 				$accessModel = model('Access');
@@ -338,8 +347,7 @@ class User extends Common
 				$this->allowField(true)->save($param, ['id' => $id]);
 				$this->commit();
 				
-				$data['user_id'] = $id;	
-				$data['mobile'] = $param['username'];	 	
+				// $data['mobile'] = $param['username'];	 	
 				$data['email'] = $param['email'];	
 				$data['sex'] = $param['sex'];				
 				$data['update_time'] = time();
@@ -362,14 +370,11 @@ class User extends Common
 	 * @param     [string]                   $verifyCode [验证码]
 	 * @param     Boolean                  	 $isRemember [是否记住密码]
 	 * @param     Boolean                    $type       [是否重复登录]
-	 * @return    [type]                               [description]
+	 * @param     array                      $paramArr 
+	 * @return    [type]                     [description]
 	 */
-	public function login($username, $password, $verifyCode = '', $isRemember = false, $type = false, $authKey)
+	public function login($username, $password, $verifyCode = '', $isRemember = false, $type = false, $authKey = '', $paramArr = [])
 	{
-        if (!$username) {
-			$this->error = '帐号不能为空';
-			return false;
-		}
 		if (!$password){
 			$this->error = '密码不能为空';
 			return false;
@@ -421,20 +426,24 @@ class User extends Common
         $info['userInfo'] = $userInfo;
         $info['sessionId'] = session_id();
         $authKey = user_md5($userInfo['username'].$userInfo['password'].$info['sessionId'], $userInfo['salt']);
-       // $info['_AUTH_LIST_'] = $dataList['rulesList'];
+        // $info['_AUTH_LIST_'] = $dataList['rulesList'];
         $info['authKey'] = $authKey;
-        //手机登录
-        if (!$type) {
-        	cache('Auth_'.$userInfo['authkey'], NULL);
-        }
+        
+    	$platform = $paramArr['platform'] ? '_'.$paramArr['platform'] : ''; //请求平台(mobile,ding)
+		//删除旧缓存
+        if (cache('Auth_'.$userInfo['authkey'].$platform)) {
+        	cache('Auth_'.$userInfo['authkey'].$platform, NULL);
+        }      
+        cache('Auth_'.$authKey.$platform, $info, $loginExpire);
         unset($userInfo['authkey']);
-		cache('Auth_'.$authKey, $info, $loginExpire);
+		
         // 返回信息
         $data['authKey']		= $authKey;
         $data['sessionId']		= $info['sessionId'];
         $data['userInfo']		= $userInfo;
         $data['authList']		= $dataList['authList'];
         $data['menusList']		= $dataList['menusList'];
+        $data['loginExpire']	= $loginExpire;
              
         //保存authKey信息
         $userData = [];
@@ -444,7 +453,7 @@ class User extends Common
     	if ($userInfo['status'] == 2) {
     		$userData['status'] = 1;
     	}
-        db('admin_user')->where(['id' => $userInfo['id']])->update($userData);
+        $this->where(['id' => $userInfo['id']])->update($userData);
         return $data;
     }
 
@@ -532,7 +541,7 @@ class User extends Common
 	 * 获取菜单和权限 protected
 	 * @param  array   $param  [description]
 	 */
-    protected function getMenuAndRule($u_id)
+    public function getMenuAndRule($u_id)
     {
     	$menusList = [];
     	$ruleMap = [];
@@ -543,7 +552,7 @@ class User extends Common
         } else {
 			$groups = $this->get($u_id)->groups;
 	        $ruleIds = [];
-			foreach($groups as $k => $v) {
+			foreach ($groups as $k => $v) {
 				if (stringToArray($v['rules'])) {
 					$ruleIds = array_merge($ruleIds, stringToArray($v['rules']));
 				}
@@ -559,9 +568,11 @@ class User extends Common
         	$newRuleIds[] = $v['id'];
         	$rules[$k]['name'] = strtolower($v['name']);
         }
+        //菜单管理(弃用)
 		// $menuMap['status'] = 1;
         // $menuMap['rule_id'] = array('in',$newRuleIds);
         // $menusList = Db::name('admin_menu')->where($menuMap)->order('sort asc')->select();
+        
         $ret = [];
         //处理菜单成树状
         $tree = new \com\Tree();
@@ -569,31 +580,49 @@ class User extends Common
         $rulesList = $tree->list_to_tree($rules, 'id', 'pid', 'child', 0, true, array('pid'));
         //权限数组
         $authList = rulesListToArray($rulesList, $newRuleIds);
-		//系统设置权限（1超级管理员2系统设置管理员3部门与员工管理员4审批流管理员5工作台管理员6客户管理员7项目管理员8公告管理员）
-		$settingList = ['0' => 'system','1' => 'user','2' => 'permission','3' => 'examineFlow','4' => 'oa','5' => 'crm'];
-	    $adminTypes = adminGroupTypes($u_id);
-	    $newSetting = [];
-	    foreach ($settingList as $k=>$v) {
-	    	$check = false;  	
-	    	if (in_array('1', $adminTypes) || in_array('2', $adminTypes)) {
-	    		$check = true;
-	    	} else {
-				if ($v == 'user' && in_array('3', $adminTypes)) $check = true;	    		
-				if ($v == 'permission' && in_array('3', $adminTypes)) $check = true;	    		
-				if ($v == 'examineFlow' && in_array('4', $adminTypes)) $check = true;	    		
-				if ($v == 'oa' && in_array('5', $adminTypes)) $check = true;	    		
-				if ($v == 'crm' && in_array('6', $adminTypes)) $check = true;	    		
-	    	}
-	    	if ($check == true) {
-	    		$newSetting['manage'][$v] = $check;
-	    	}
-	    }
-	    if ($authList && $newSetting) {
-	    	$authList = array_merge($authList, $newSetting);
-	    } elseif ($newSetting) {
-			$authList = $newSetting;
-	    }
-
+		//应用控制
+        $adminConfig = db('admin_config')->where(['pid' => 0,'status' => 1])->column('module');
+        $adminConfig = $adminConfig ? array_merge($adminConfig,['bi','admin']) : ['bi','admin'];        
+		foreach ($authList as $k=>$v) {
+			if (!in_array($k,$adminConfig)) {
+				unset($authList[$k]);
+			}
+			//商业智能权限细化
+			if ($authList['bi']) {
+				if (!in_array('oa',$adminConfig) && !in_array('crm',$adminConfig)) {
+					unset($authList['bi']);
+				} else {
+					foreach ($authList['bi'] as $key=>$val) {
+						if (!in_array('oa',$adminConfig)) {
+							unset($authList['bi']['oa']);
+						}
+						if (!in_array('crm',$adminConfig)) {
+							unset($authList['bi']['customer']);
+							unset($authList['bi']['business']);
+							unset($authList['bi']['product']);
+							unset($authList['bi']['achievement']);
+							unset($authList['bi']['contract']);
+							unset($authList['bi']['portrait']);
+							unset($authList['bi']['ranking']);
+						}					
+					}					
+				}
+			} else {
+				unset($authList['bi']);
+			}	
+			if (in_array('oa',$adminConfig) && !$authList['oa']) {
+				// $authList['oa'] = (object)array();
+				$oaAuth =[]; //办公默认权限
+				$oaAuth = ['announcement' => 'read'];
+				$authList['oa'] = $oaAuth;
+			}
+			if (in_array('work',$adminConfig) && !$authList['work']) {
+				// $authList['oa'] = (object)array();
+				$oaAuth =[]; //项目默认权限
+				$oaAuth = ['work' => 'read'];
+				$authList['work'] = $oaAuth;
+			}			
+		}
 	    $ret['authList'] = $authList;    
         return $ret;
     }
@@ -648,7 +677,6 @@ class User extends Common
     	$mRuleId = db('admin_rule')->where(['name'=>$m,'level'=>1])->value('id');
     	$cRuleId = db('admin_rule')->where(['name'=>$c,'level'=>2,'pid'=>$mRuleId])->value('id');
     	$aRuleId = db('admin_rule')->where(['name'=>$a,'level'=>3,'pid'=>$cRuleId])->value('id');
-
 		//获取用户组
 		$groups = $this->get($uid)->groups;
 		if (!$groups) {
@@ -866,5 +894,17 @@ class User extends Common
  			}			
 		}
 		return true;
-	}		
+	}
+
+	/**
+     * [getUserThree 员工第三方扩展信息]
+     * @param  key 分类
+     * @author Michael_xu
+     * @return    [array]
+     */	
+    public function getUserThree($key, $user_id)
+    {
+    	$resValue = db('admin_user_threeparty')->where(['key' => $key,'user_id' => $user_id])->value('value');
+    	return $resValue ? : '';
+    }			
 }

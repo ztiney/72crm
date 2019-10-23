@@ -31,6 +31,10 @@ class Achievement extends ApiCommon
         if (!in_array($a, $action['permission'])) {
             parent::_initialize();
         }
+        if (!checkPerByAction('bi', 'achievement', 'read')) {
+            header('Content-Type:application/json; charset=utf-8');
+            exit(json_encode(['code'=>102,'error'=>'无权操作']));
+        }        
     }
 
     /**
@@ -38,14 +42,10 @@ class Achievement extends ApiCommon
      * @return 
      */
     public function statistics()
-    {
-        if (!checkPerByAction('bi', 'achievement' , 'read')) {
-            header('Content-Type:application/json; charset=utf-8');
-            exit(json_encode(['code'=>102,'error'=>'无权操作']));
-        }        
+    {       
         $param = $this->param;
         $achievementModel = new \app\crm\model\Achievement();
         $list = $achievementModel->getList($param) ? : [];
         return resultArray(['data'=>$list]);
-    }    
+    }
 }

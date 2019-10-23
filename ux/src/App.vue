@@ -11,6 +11,7 @@
 <script>
 /** 常用图片预览创建组件 */
 import VuePictureViewer from '@/components/vuePictureViewer/index'
+import { mapGetters } from 'vuex'
 
 export default {
   name: 'App',
@@ -24,12 +25,16 @@ export default {
       previewImgs: []
     }
   },
+  computed: {
+    ...mapGetters(['activeIndex'])
+  },
   watch: {
     $route(to, from) {
       this.showPreviewImg = false //切换页面隐藏图片预览
-      let paths = to.path.split('/')
-      if (paths.length == 3) {
-        this.$store.commit('SET_ACTIVEINDEX', paths[2])
+      if (to.meta.menuIndex) {
+        this.$store.commit('SET_ACTIVEINDEX', to.meta.menuIndex)
+      } else {
+        this.$store.commit('SET_ACTIVEINDEX', to.path)
       }
     }
   },

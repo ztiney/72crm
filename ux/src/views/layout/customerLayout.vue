@@ -25,13 +25,13 @@
           </div>
         </sidebar>
       </el-aside>
-      <el-main id="crm-main-container"
-               style="padding:15px;">
+      <el-main id="crm-main-container">
         <app-main></app-main>
       </el-main>
     </el-container>
     <c-r-m-create-view v-if="isCreate"
                        :crm-type="createCRMType"
+                       @save-success="createSaveSuccess"
                        @hiden-view="isCreate=false"></c-r-m-create-view>
   </el-container>
 </template>
@@ -116,7 +116,14 @@ export default {
       createCRMType: ''
     }
   },
+
+  created() {
+    this.getcrmMessagNum()
+    this.getcrmSettingConfig()
+  },
+
   mounted() {},
+
   methods: {
     navClick(index) {},
     addSkip(item) {
@@ -128,6 +135,42 @@ export default {
       }
       this.createCRMType = type
       this.isCreate = true
+    },
+
+    /**
+     * 获取消息数
+     */
+    getcrmMessagNum() {
+      this.$store
+        .dispatch('GetMessageNum')
+        .then(res => {})
+        .catch(() => {})
+    },
+
+    /**
+     * 获取客户管理配置信息
+     */
+    getcrmSettingConfig() {
+      this.$store.dispatch('CRMSettingConfig')
+    },
+
+    /**
+     * 新建客户同时新建联系人
+     */
+    // 创建数据页面 保存成功
+    createSaveSuccess(data) {
+      if (data && data.saveAndCreate) {
+        if (data.type == 'customer') {
+          this.createCRMType = 'contacts'
+          this.createActionInfo = {
+            type: 'relative',
+            crmType: 'customer',
+            data: {}
+          }
+          this.createActionInfo.data['customer'] = data.data
+          this.isCreate = true
+        }
+      }
     }
   }
 }

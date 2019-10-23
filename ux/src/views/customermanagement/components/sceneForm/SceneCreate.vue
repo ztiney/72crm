@@ -1,5 +1,5 @@
 <template>
-  <el-dialog title="新建场景"
+  <el-dialog :title="edit_id ? '编辑场景' : '新建场景'"
              :visible.sync="visible"
              @close="handleCancel"
              :append-to-body="true"
@@ -13,7 +13,8 @@
       </el-input>
     </div>
     <div class="scene-name">筛选条件</div>
-    <el-form class="filter-container">
+    <el-form class="filter-container"
+             id="scene-filter-container">
       <el-form-item>
         <template v-for="(formItem, index) in form">
           <el-row :key="index">
@@ -255,6 +256,13 @@ export default {
       },
       deep: true,
       immediate: true
+    },
+
+    form() {
+      this.$nextTick(() => {
+        var container = document.getElementById('scene-filter-container')
+        container.scrollTop = container.scrollHeight
+      })
     }
   },
   methods: {

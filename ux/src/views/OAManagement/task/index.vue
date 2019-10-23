@@ -53,7 +53,7 @@ export default {
   data() {
     return {
       activeName: 'mytask',
-      activePramas: { priority: 'all' },
+      activePramas: { status: '1', priority: 'all' },
       tabData: [
         { label: '我的任务', key: 'mytask' },
         { label: '我下属的任务', key: 'subtask' }
@@ -95,23 +95,17 @@ export default {
   },
   mounted() {
     // 分批次加载
-    let _this = this
-    for (let item of document.getElementsByClassName('list-box-container')) {
-      item.onscroll = function() {
-        let doms = item
-        var scrollTop = doms.scrollTop
-        var windowHeight = doms.clientHeight
-        var scrollHeight = doms.scrollHeight //滚动条到底部的条件
-        if (
-          scrollTop + windowHeight == scrollHeight &&
-          _this.loadMoreLoading == true
-        ) {
-          if (!_this.isPost) {
-            _this.isPost = true
-            _this.pageNum++
-            _this.getList(_this.pageNum)
+    for (let dom of document.getElementsByClassName('list-box-container')) {
+      dom.onscroll = () => {
+        let scrollOff = dom.scrollTop + dom.clientHeight - dom.scrollHeight
+        //滚动条到底部的条件
+        if (Math.abs(scrollOff) < 10 && this.loadMoreLoading == true) {
+          if (!this.isPost) {
+            this.isPost = true
+            this.pageNum++
+            this.getList()
           } else {
-            _this.loadMoreLoading = false
+            this.loadMoreLoading = false
           }
         }
       }
@@ -209,8 +203,10 @@ export default {
           this.listData = this.listData.concat(res.data.list)
 
           if (res.data.list.length < 15) {
+            this.loadText = '没有更多了'
             this.loadMoreLoading = false
           } else {
+            this.loadText = '加载更多'
             this.loadMoreLoading = true
           }
           this.isPost = false
@@ -246,12 +242,12 @@ export default {
     .el-tabs /deep/ .el-tabs__content {
       padding: 0 30px;
       flex: 1;
-      // overflow-y: auto;
       margin-bottom: 20px;
       .el-tab-pane {
         height: 100%;
         display: flex;
         flex-direction: column;
+        overflow-y: hidden;
       }
     }
     .search-input {

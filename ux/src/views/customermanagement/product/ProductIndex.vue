@@ -5,6 +5,7 @@
                      @on-handle="listHeadHandle"
                      @on-search="crmSearch"
                      main-title="新建产品"
+                     @on-export="exportInfos"
                      :crm-type="crmType">
     </c-r-m-list-head>
     <div v-empty="!crm.product.index"
@@ -27,6 +28,7 @@
                 style="width: 100%"
                 :cell-style="cellStyle"
                 @row-click="handleRowClick"
+                @sort-change="sortChange"
                 @header-dragend="handleHeaderDragend"
                 @selection-change="handleSelectionChange">
         <el-table-column show-overflow-tooltip
@@ -36,6 +38,7 @@
         </el-table-column>
         <el-table-column v-for="(item, index) in fieldList"
                          :key="index"
+                         sortable="custom"
                          show-overflow-tooltip
                          :fixed="index==0"
                          :prop="item.prop"

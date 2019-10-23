@@ -29,39 +29,42 @@
                       v-model="field.default_value"
                       :disabled="disabled">
         <draggable :list="field.showSetting">
-          <el-radio class="radio"
-                    v-for="(item, index) in field.showSetting"
-                    @click.native.prevent="radioChange(item.value)"
-                    :key="index"
-                    :label="item.value">
-            <el-input class="input"
-                      v-model="item.value"
-                      :disabled="disabled"></el-input>
+          <div class="radio"
+               v-for="(item, index) in field.showSetting"
+               :key="index">
+            <el-radio @click.native.prevent="radioChange(item.value)"
+                      :label="item.value">
+              <el-input class="input"
+                        v-model="item.value"
+                        :disabled="disabled"></el-input>
+            </el-radio>
             <i @click="handleRadio('add', item, index)"
                class="el-icon-circle-plus handle"></i>
             <i v-if="field.showSetting.length > 1"
                @click="handleRadio('remove', item, index)"
                class="el-icon-remove handle"></i>
-          </el-radio>
+          </div>
         </draggable>
       </el-radio-group>
       <el-checkbox-group v-if="field.form_type == 'checkbox'"
                          v-model="field.default_value"
                          :disabled="disabled">
         <draggable :list="field.showSetting">
-          <el-checkbox class="checkbox"
-                       v-for="(item, index) in field.showSetting"
-                       :key="index"
-                       :label="item.value">
+          <div v-for="(item, index) in field.showSetting"
+               :key="index"
+               class="checkbox">
+            <el-checkbox :label="item.value">
+            </el-checkbox>
             <el-input class="input"
                       v-model="item.value"
                       :disabled="disabled"></el-input>
-            <i @click="handleRadio('add', item, index)"
+            <i @click.stop="handleCheckbox('add', item, index)"
                class="el-icon-circle-plus handle"></i>
             <i v-if="field.showSetting.length > 1"
-               @click="handleRadio('remove', item, index)"
+               @click.stop="handleCheckbox('remove', item, index)"
                class="el-icon-remove handle"></i>
-          </el-checkbox>
+          </div>
+
         </draggable>
       </el-checkbox-group>
     </div>
@@ -97,6 +100,22 @@
       <div class="input-tips"><span>*</span>上限为2000字</div>
     </div>
 
+    <div v-if="canTransform && transformData && transformData[field.form_type]"
+         class="item-section">
+      <div class="name">
+        转化客户字段
+      </div>
+      <el-select v-model="field.relevant"
+                 clearable
+                 placeholder="请选择">
+        <el-option v-for="item in transformData[field.form_type]"
+                   :key="item.value"
+                   :label="item.label"
+                   :value="item.value">
+        </el-option>
+      </el-select>
+    </div>
+
     <div class="item-check-section">
       <el-checkbox v-model="field.is_null"
                    :disabled="disabled">设为必填</el-checkbox>
@@ -105,6 +124,7 @@
       <el-checkbox v-model="field.is_unique"
                    :disabled="disabled">设为唯一</el-checkbox>
     </div>
+
   </div>
 </template>
 <script type="text/javascript">
@@ -209,10 +229,14 @@ export default {
           max_length: '', // textarea 多行文本有最大数量
           default_value: '', // 默认值
           setting: '', // 接口返回setting数据
-          showSetting: '' // 单选选项
+          showSetting: '', // 单选选项
+          relevant: '' // 转移字段
         }
       }
-    }
+    },
+    // 是否开启转移  转移对应数据
+    canTransform: Boolean,
+    transformData: Object
   },
   mounted() {
     if (this.show_select && this.field.showSetting.length == 0) {
@@ -246,6 +270,27 @@ export default {
         ? (this.field.default_value = '')
         : (this.field.default_value = val)
     },
+    /**
+     * 多选
+     */
+    handleCheckbox(type, item, index) {
+      if (this.disabled) {
+        // 不能点击
+        return
+      }
+      if (type == 'add') {
+        this.field.showSetting.push({
+          value: '选' + (this.field.showSetting.length + 1)
+        })
+      } else if (type == 'remove') {
+        let removeIndex = this.field.default_value.indexOf(item.value)
+        if (removeIndex != -1) {
+          this.field.default_value.splice(removeIndex, 1)
+        }
+        this.field.showSetting.splice(index, 1)
+      }
+    },
+
     /*** 输入默认值触发 */
     inputBlur(e) {
       if (this.field.form_type == 'mobile') {
@@ -304,7 +349,11 @@ export default {
 .radio {
   margin-top: 5px;
   margin-left: 0;
+  /deep/ .el-radio {
+    margin-right: 10px !important;
+  }
   .input {
+    display: inline-block;
     width: 180px;
   }
   .handle {
@@ -317,7 +366,14 @@ export default {
   display: block;
   margin-left: 0;
   margin-top: 5px;
+  /deep/.el-checkbox {
+    margin-right: 10px;
+    .el-checkbox__label {
+      display: none;
+    }
+  }
   .input {
+    display: inline-block;
     width: 180px;
   }
   .handle {

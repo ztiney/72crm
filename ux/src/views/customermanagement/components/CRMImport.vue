@@ -1,5 +1,8 @@
 <template>
-  <el-dialog :visible.sync="showDialog"
+  <el-dialog v-loading="loading"
+             element-loading-text="资料导入中"
+             element-loading-spinner="el-icon-loading"
+             :visible.sync="showDialog"
              :title="'导入'+crmTypeName"
              width="550px"
              :append-to-body="true"
@@ -16,7 +19,10 @@
         </div>
       </div>
       <div class="sections">
-        <div>二、请选择数据重复时的处理方式（查重规则：【{{crmTypeName}}名称】）</div>
+        <flexbox align="initial">
+          <div>二、</div>
+          <div>请选择数据重复时的处理方式（查重规则：【{{fieldUniqueInfo}}】）</div>
+        </flexbox>
         <div class="content">
           <el-select v-model="config"
                      placeholder="请选择">
@@ -40,7 +46,7 @@
         </div>
       </div>
       <div class="sections">
-        <div>四、请选择负责人（{{crmType == 'leads' ? '必选' : '如不选择，导入的客户将进入公海'}}）</div>
+        <div>四、请选择负责人（{{crmType == 'customer' ? '如不选择，导入的客户将进入公海' : '必选'}}）</div>
         <div class="content">
           <div class="user-cell">
             <xh-user-cell :value="user"
@@ -66,16 +72,23 @@
 import { mapGetters } from 'vuex'
 import {
   crmCustomerExcelImport,
-  crmCustomerExcelDownload,
   crmCustomerExcelDownloadURL
 } from '@/api/customermanagement/customer'
 import {
   crmLeadsExcelImport,
-  crmLeadsExcelDownload,
   crmLeadsExcelDownloadURL
 } from '@/api/customermanagement/clue'
+import {
+  crmContactsExcelImport,
+  crmContactsExcelDownloadURL
+} from '@/api/customermanagement/contacts'
+import {
+  crmProductExcelImport,
+  crmProductExcelDownloadURL
+} from '@/api/customermanagement/product'
+import { adminFieldUniqueFieldAPI } from '@/api/customermanagement/common'
+
 import { XhUserCell } from '@/components/CreateCom'
-import { Loading } from 'element-ui'
 
 export default {
   name: 'c-r-m-import', // 文件导入
@@ -88,18 +101,21 @@ export default {
       showDialog: false,
       config: 1, // 	1 覆盖，0跳过
       file: { name: '' },
-      user: []
+      user: [],
+      fieldUniqueInfo: '' // 字段验重信息
     }
   },
   computed: {
     ...mapGetters(['userInfo']),
     crmTypeName() {
-      if (this.crmType == 'customer') {
-        return '客户'
-      } else if (this.crmType == 'leads') {
-        return '线索'
-      }
-      return ''
+      return (
+        {
+          customer: '客户',
+          leads: '线索',
+          contacts: '联系人',
+          product: '产品'
+        }[this.crmType] || ''
+      )
     }
   },
   props: {
@@ -116,6 +132,9 @@ export default {
   watch: {
     show: function(val) {
       this.showDialog = val
+      if (!this.fieldUniqueInfo) {
+        this.getFieldUniqueInfo()
+      }
     }
   },
   mounted() {
@@ -127,7 +146,7 @@ export default {
       if (!this.file.name) {
         this.$message.error('请选择导入文件')
       } else if (
-        this.crmType == 'leads' &&
+        this.crmType != 'customer' &&
         (!this.user || this.user.length == 0)
       ) {
         this.$message.error('请选择负责人')
@@ -135,32 +154,36 @@ export default {
         params.config = this.config
         params.file = this.file
         params.owner_user_id = this.user.length > 0 ? this.user[0].id : ''
-        var request
-        if (this.crmType == 'customer') {
-          request = crmCustomerExcelImport
-        } else if (this.crmType == 'leads') {
-          request = crmLeadsExcelImport
-        }
-        let loading = Loading.service({ fullscreen: true })
+
+        var request = {
+          customer: crmCustomerExcelImport,
+          leads: crmLeadsExcelImport,
+          contacts: crmContactsExcelImport,
+          product: crmProductExcelImport
+        }[this.crmType]
+        this.loading = true
         request(params)
           .then(res => {
-            loading.close()
+            this.loading = false
             this.$message.success(res.data)
             this.closeView()
           })
           .catch(() => {
-            loading.close()
+            this.loading = false
           })
       }
     },
     // 下载模板操作
     download() {
       var a = document.createElement('a')
-      if (this.crmType == 'customer') {
-        a.href = window.BASE_URL + crmCustomerExcelDownloadURL
-      } else if (this.crmType == 'leads') {
-        a.href = window.BASE_URL + crmLeadsExcelDownloadURL
-      }
+      a.href =
+        window.BASE_URL +
+        {
+          customer: crmCustomerExcelDownloadURL,
+          leads: crmLeadsExcelDownloadURL,
+          contacts: crmContactsExcelDownloadURL,
+          product: crmProductExcelDownloadURL
+        }[this.crmType]
       a.target = '_black'
       document.body.appendChild(a)
       a.click()
@@ -188,6 +211,16 @@ export default {
     // 关闭操作
     closeView() {
       this.$emit('close')
+    },
+    /**
+     * 获取字段验重信息
+     */
+    getFieldUniqueInfo() {
+      adminFieldUniqueFieldAPI({ types: 'crm_' + this.crmType })
+        .then(res => {
+          this.fieldUniqueInfo = res.data
+        })
+        .catch(() => {})
     }
   }
 }
@@ -228,6 +261,17 @@ export default {
   }
   button {
     margin-left: 20px;
+  }
+}
+
+.el-dialog__wrapper {
+  /deep/ .el-icon-loading {
+    font-size: 30px;
+  }
+
+  /deep/ .el-loading-text {
+    font-size: 18px;
+    margin-top: 10px;
   }
 }
 </style>

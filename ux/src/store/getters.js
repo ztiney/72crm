@@ -19,13 +19,20 @@ const getters = {
   allAuth: state => state.user.allAuth,
   crm: state => state.user.crm,
   bi: state => state.user.bi,
-  manage: state => state.user.manage,
+  admin: state => state.user.admin,
+  oa: state => state.user.oa,
+  work: state => state.user.work,
   // 路由
   addRouters: state => state.permission.addRouters,
+  oaRouters: state => state.permission.oaRouters,
   crmRouters: state => state.permission.crmRouters,
   biRouters: state => state.permission.biRouters,
-  manageRouters: state => state.permission.manageRouters
-
+  manageRouters: state => state.permission.manageRouters,
+  // 客户管理信息
+  messageNum: state => state.customer.messageNum,
+  messageOANum: state => state.oa.messageOANum,
+  // 配置信息
+  CRMConfig: state => state.app.CRMConfig
 }
 /**
  * 使用说明

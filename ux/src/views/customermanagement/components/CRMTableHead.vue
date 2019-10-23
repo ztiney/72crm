@@ -9,7 +9,7 @@
                   v-model="showScene"
                   width="150">
         <flexbox slot="reference">
-          <div class="condition_title">{{sceneName ? sceneName : getDefaultSceneName()}}</div>
+          <div class="condition_title">{{sceneData.name || getDefaultSceneName()}}</div>
           <i class="el-icon-arrow-down el-icon--right"
              style="color:#777;"></i>
         </flexbox>
@@ -40,7 +40,6 @@
         <flexbox class="selection-item"
                  v-for="(item, index) in getSelectionHandleItemsInfo()"
                  :key="index"
-                 v-if="whetherTypeShowByPermision(item.type)"
                  @click.native="selectionBarClick(item.type)">
           <img class="selection-item-icon"
                :src="item.icon" />
@@ -66,6 +65,10 @@
                   :selectionList="selectionList"
                   @handle="handleCallBack"
                   :dialogVisible.sync="allocDialogShow"></alloc-handle>
+    <deal-status-handle :crmType="crmType"
+                        :selectionList="selectionList"
+                        @handle="handleCallBack"
+                        :visible.sync="dealStatusShow"></deal-status-handle>
 
     <scene-set :dialogVisible.sync="showSceneSet"
                @save-success="updateSceneList"
@@ -97,14 +100,21 @@ import {
   crmCustomerLock,
   crmCustomerPutInPool,
   crmCustomerExcelExport,
+  crmCustomerPoolExcelExportAPI,
   crmCustomerDelete,
   crmCustomerReceive
 } from '@/api/customermanagement/customer'
-import { crmContactsDelete } from '@/api/customermanagement/contacts'
+import {
+  crmContactsExcelExport,
+  crmContactsDelete
+} from '@/api/customermanagement/contacts'
 import { crmBusinessDelete } from '@/api/customermanagement/business'
 import { crmContractDelete } from '@/api/customermanagement/contract'
 import { crmReceivablesDelete } from '@/api/customermanagement/money'
-import { crmProductStatus } from '@/api/customermanagement/product'
+import {
+  crmProductExcelExport,
+  crmProductStatus
+} from '@/api/customermanagement/product'
 
 import filterForm from './filterForm'
 import filterContent from './filterForm/filterContent'
@@ -115,6 +125,7 @@ import SceneCreate from './sceneForm/SceneCreate'
 import TransferHandle from './selectionHandle/TransferHandle' // 转移
 import TeamsHandle from './selectionHandle/TeamsHandle' // 操作团队成员
 import AllocHandle from './selectionHandle/AllocHandle' // 公海分配操作
+import DealStatusHandle from './selectionHandle/DealStatusHandle' // 客户状态修改操作
 
 export default {
   name: 'CRM-table-head', //客户管理下 重要提醒 回款计划提醒
@@ -126,10 +137,11 @@ export default {
     TeamsHandle,
     AllocHandle,
     SceneCreate,
-    SceneSet
+    SceneSet,
+    DealStatusHandle
   },
   computed: {
-    ...mapGetters(['crm'])
+    ...mapGetters(['crm', 'CRMConfig'])
   },
   data() {
     return {
@@ -143,8 +155,7 @@ export default {
       fieldList: [],
       filterObj: { form: [] }, // 筛选确定数据
 
-      sceneID: '', //场景默认信息
-      sceneName: '', //场景名称
+      sceneData: { id: '', bydata: '', name: '' },
       showSceneSet: false, // 展示场景设置
       showSceneCreate: false, // 展示场景添加
       sceneFilterObj: { form: [] }, // 筛选确定数据
@@ -154,7 +165,8 @@ export default {
       transferDialogShow: false,
       teamsDialogShow: false, // 团队操作提示框
       teamsTitle: '', // 团队操作标题名
-      allocDialogShow: false // 公海分配操作提示框
+      allocDialogShow: false, // 公海分配操作提示框
+      dealStatusShow: false // 成交状态修改框
     }
   },
   watch: {},
@@ -220,8 +232,7 @@ export default {
     // 场景操作
     /** 选择了场景 */
     sceneSelect(data) {
-      this.sceneName = data.name
-      this.sceneID = data.id
+      this.sceneData = data
       this.$emit('scene', data)
     },
     sceneHandle(data) {
@@ -252,27 +263,23 @@ export default {
         // 转移
         this.transferDialogShow = true
       } else if (type == 'export') {
-        var params = { scene_id: this.scene_id }
-        var request
-        if (this.crmType == 'customer') {
-          request = crmCustomerExcelExport
-          params.customer_id = this.selectionList.map(function(
-            item,
-            index,
-            array
-          ) {
-            return item.customer_id
-          })
-        } else if (this.crmType == 'leads') {
-          request = crmLeadsExcelExport
-          params.leads_id = this.selectionList.map(function(
-            item,
-            index,
-            array
-          ) {
-            return item.leads_id
-          })
+        let params = { scene_id: this.scene_id }
+
+        let request
+        // 公海的请求
+        if (this.isSeas) {
+          request = crmCustomerPoolExcelExportAPI
+        } else {
+          request = {
+            customer: crmCustomerExcelExport,
+            leads: crmLeadsExcelExport,
+            contacts: crmContactsExcelExport,
+            product: crmProductExcelExport
+          }[this.crmType]
         }
+        params[this.crmType + '_id'] = this.selectionList.map(item => {
+          return item[this.crmType + '_id']
+        })
         request(params)
           .then(res => {
             var blob = new Blob([res.data], {
@@ -344,6 +351,9 @@ export default {
       } else if (type == 'alloc') {
         // 公海分配操作
         this.allocDialogShow = true
+      } else if (type == 'deal_status') {
+        // 客户成交状态操作
+        this.dealStatusShow = true
       }
     },
     confirmHandle(type) {
@@ -360,6 +370,7 @@ export default {
               type: 'success',
               message: res.data
             })
+            this.$emit('handle', { type: type })
           })
           .catch(() => {})
       } else if (type === 'put_seas') {
@@ -523,6 +534,11 @@ export default {
           name: '下架',
           type: 'disable',
           icon: require('@/assets/img/selection_disable.png')
+        },
+        deal_status: {
+          name: '更改成交状态',
+          type: 'deal_status',
+          icon: require('@/assets/img/selection_deal_status.png')
         }
       }
       if (this.crmType == 'leads') {
@@ -534,11 +550,16 @@ export default {
         ])
       } else if (this.crmType == 'customer') {
         if (this.isSeas) {
-          return this.forSelectionHandleItems(handleInfos, ['alloc', 'get'])
+          return this.forSelectionHandleItems(handleInfos, [
+            'alloc',
+            'get',
+            'export'
+          ])
         } else {
           return this.forSelectionHandleItems(handleInfos, [
             'transfer',
             'export',
+            'deal_status',
             'put_seas',
             'delete',
             'lock',
@@ -548,7 +569,11 @@ export default {
           ])
         }
       } else if (this.crmType == 'contacts') {
-        return this.forSelectionHandleItems(handleInfos, ['transfer', 'delete'])
+        return this.forSelectionHandleItems(handleInfos, [
+          'transfer',
+          'export',
+          'delete'
+        ])
       } else if (this.crmType == 'business') {
         return this.forSelectionHandleItems(handleInfos, [
           'transfer',
@@ -566,23 +591,37 @@ export default {
       } else if (this.crmType == 'receivables') {
         return this.forSelectionHandleItems(handleInfos, ['delete'])
       } else if (this.crmType == 'product') {
-        return this.forSelectionHandleItems(handleInfos, ['start', 'disable'])
+        return this.forSelectionHandleItems(handleInfos, [
+          'export',
+          'start',
+          'disable'
+        ])
       }
     },
     forSelectionHandleItems(handleInfos, array) {
       var tempsHandles = []
       for (let index = 0; index < array.length; index++) {
-        tempsHandles.push(handleInfos[array[index]])
+        let type = array[index]
+        if (this.whetherTypeShowByPermision(type)) {
+          tempsHandles.push(handleInfos[type])
+        }
       }
       return tempsHandles
     },
     // 判断是否展示
-    whetherTypeShowByPermision: function(type) {
+    whetherTypeShowByPermision(type) {
       if (type == 'transfer') {
-        return this.crm[this.crmType].transfer
+        return this.sceneData.bydata == 'is_transform'
+          ? false
+          : this.crm[this.crmType].transfer
       } else if (type == 'transform') {
-        return this.crm[this.crmType].transform
+        return this.sceneData.bydata == 'is_transform'
+          ? false
+          : this.crm[this.crmType].transform
       } else if (type == 'export') {
+        if (this.isSeas) {
+          return this.crm[this.crmType].poolexcelexport
+        }
         return this.crm[this.crmType].excelexport
       } else if (type == 'delete') {
         return this.crm[this.crmType].delete
@@ -591,7 +630,7 @@ export default {
         return this.crm[this.crmType].putinpool
       } else if (type == 'lock' || type == 'unlock') {
         // 锁定解锁(客户)
-        return this.crm[this.crmType].lock
+        return this.crm[this.crmType].lock && this.CRMConfig.config == 1
       } else if (type == 'add_user' || type == 'delete_user') {
         // 添加 移除团队成员
         return this.crm[this.crmType].teamsave
@@ -604,6 +643,9 @@ export default {
       } else if (type == 'start' || type == 'disable') {
         // 上架 下架(产品)
         return this.crm[this.crmType].status
+      } else if (type == 'deal_status') {
+        // 客户状态修改
+        return this.crm[this.crmType].deal_status
       }
 
       return true
@@ -673,9 +715,12 @@ export default {
 }
 
 .selection-items-box {
+  overflow-x: auto;
+  overflow-y: hidden;
   .selection-item {
     width: auto;
     padding: 15px;
+    flex-shrink: 0;
     .selection-item-icon {
       display: block;
       margin-right: 5px;

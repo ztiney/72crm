@@ -24,15 +24,17 @@ class AuthenticateBehavior
         $a = strtolower($request->action());        
         //提交方式拦截
         $scan = new \com\Scan();
-        $response = $scan->webscan_Check();   
+        $response = $scan->webscan_Check();            
 		
 		$allow = $params['allow']; //登录用户可访问
 		$permission = $params['permission']; //无限制
 		/*获取头部信息*/ 
         $header = $request->header();
         $authKey = $header['authkey'];
-		$cache = cache('Auth_'.$authKey);
-
+        
+		$paramArr = $request->param();
+        $platform = $paramArr['platform'] ? '_'.$paramArr['platform'] : ''; //请求分类(mobile,ding)
+        $cache = cache('Auth_'.$authKey.$platform); 
         $userInfo = $cache['userInfo'];
     	
     	if (in_array($a, $permission)) {
